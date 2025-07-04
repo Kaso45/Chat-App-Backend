@@ -1,0 +1,6 @@
+fastapi[standard]
+fastapi-mail
+pymongo
+python-jose
+bcrypt
+cryptography
