@@ -1,7 +1,10 @@
 fastapi[standard]
 fastapi-mail
 pymongo
+motor
 python-jose
 python-dotenv
 bcrypt
 cryptography
+email-validator
+pydantic-settings
