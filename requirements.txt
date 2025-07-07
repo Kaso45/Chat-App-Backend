@@ -2,5 +2,6 @@ fastapi[standard]
 fastapi-mail
 pymongo
 python-jose
+python-dotenv
 bcrypt
 cryptography

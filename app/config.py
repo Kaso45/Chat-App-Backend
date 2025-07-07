@@ -1,14 +1,19 @@
 """Module providing class to access for environment variables"""
 
-import os
 from dotenv import load_dotenv
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 load_dotenv()
 
-class Settings:
+class Settings(BaseSettings):
     """Class for getting environment variables"""
-    MONGO_URI: str = os.getenv("MONGO_URI")
-    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY")
-    FERNET_SECRET_KEY: str = os.getenv("FERNET_SECRET_KEY")
+    MONGO_URI: str
+    ACCESS_TOKEN_SECRET: str
+    RESET_PASSWORD_TOKEN_SECRET: str
+    FERNET_SECRET_KEY: str
+
+    model_config = SettingsConfigDict(
+        env_file=".env"
+    )
 
 settings = Settings()
