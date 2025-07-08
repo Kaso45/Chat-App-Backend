@@ -18,6 +18,9 @@ class UserRegisterResponse(BaseModel):
     msg: str
     user_id: str
 
-class ForgetPasswordRequest(BaseModel):
-    """Password reset request form"""
+class ForgotPasswordRequest(BaseModel):
     email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    new_password: str
+    confirm_password: str
