@@ -5,13 +5,14 @@ from pydantic import EmailStr
 from app.models.user import UserModel
 from app.database.database import user_collection
 
+
 class UserRepository:
-    """User Repository
-    """
+    """User Repository"""
+
     def __init__(self):
         self.collection = user_collection
 
-    async def get_by_email(self, email: EmailStr) -> UserModel:
+    async def get_by_email(self, email: EmailStr):
         """Get user by email
 
         Args:

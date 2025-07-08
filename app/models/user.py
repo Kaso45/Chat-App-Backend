@@ -5,8 +5,10 @@ from pydantic import BaseModel, Field, ConfigDict, EmailStr
 
 from app.custom_classes.pyobjectid import PyObjectId
 
+
 class UserModel(BaseModel):
     """Pydantic model for user"""
+
     id: Optional[PyObjectId] = Field(default=None, alias="_id")
     email: EmailStr
     username: str
@@ -18,7 +20,7 @@ class UserModel(BaseModel):
             "example": {
                 "email": "kaso45@gmail.com",
                 "username": "Kaso45",
-                "password": "1234"
+                "password": "1234",
             }
         },
     )

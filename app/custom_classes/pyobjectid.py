@@ -6,8 +6,10 @@ from pydantic import GetCoreSchemaHandler
 from pydantic_core import core_schema
 from pydantic_core.core_schema import CoreSchema, ValidationInfo
 
+
 class PyObjectId(ObjectId):
     """Pydantic custom class for ObjectId"""
+
     @classmethod
     def __get_pydantic_core_schema__(
         cls, source_type: Any, handler: GetCoreSchemaHandler
