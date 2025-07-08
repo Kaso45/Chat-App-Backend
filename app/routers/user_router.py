@@ -1,88 +1,77 @@
 """Module providing functions for authentication endpoint"""
 
-from fastapi import APIRouter, status, HTTPException
+from fastapi import APIRouter, status, BackgroundTasks, Query
 
-from app.models.user import UserModel
-from app.database.database import user_collection
-from app.util.password_hashing_util import hash_password, verify_password
-from app.util.jwt_util import create_access_token
-
-router = APIRouter(
-    prefix="/api/auth"
+from app.schemas.user_schema import (
+    UserLoginRequest,
+    UserLoginResponse,
+    UserRegisterRequest,
+    UserRegisterResponse,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
 )
+from app.services.user_service import UserService
+
+router = APIRouter(prefix="/api/auth", tags=["Users"])
+
 
 @router.post(
     "/login",
     response_description="Login",
+    response_model=UserLoginResponse,
     status_code=status.HTTP_200_OK,
-    response_model_by_alias=False
+    response_model_by_alias=False,
 )
-async def login(request: UserModel):
-    """Function for login"""
-    # Verify user existence
-    user_doc = await user_collection.find_one({"email": request.email})
-    if not user_doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
+async def login(request: UserLoginRequest):
+    """Login endpoint
 
-    try:
-        # Verify password
-        user = UserModel(**user_doc)
-        if not verify_password(request.password, user.password):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Wrong password"
-            )
-        
-        # Verify email
-        if request.email != user.email:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Wrong email"
-            )
+    Args:
+        request (UserLoginRequest): Email and password
 
-        # Generate access token
-        token = create_access_token(data={"sub": str(user.id)})
+    Returns:
+        UserLoginResponse: Access token
+    """
+    service = UserService()
+    return await service.login_user(request)
 
-        return {"token": token}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        ) from e
 
 @router.post(
     "/register",
     response_description="Register",
+    response_model=UserRegisterResponse,
     status_code=status.HTTP_201_CREATED,
-    response_model_by_alias=False
+    response_model_by_alias=False,
 )
-async def register(request: UserModel):
-    """Function for registration"""
-    # Check for existing user
-    existing_user = await user_collection.find_one({"email": request.email})
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="User already exists"
-        )
+async def register(request: UserRegisterRequest):
+    """Register endpoint
 
-    try:
-        # Hash password
-        hashed_password = hash_password(request.password)
-        request.password = hashed_password
+    Args:
+        request (UserRegisterRequest): Email, username and password
 
-        # Insert into database
-        user_data = request.model_dump(by_alias=True, exclude="id")
-        result = await user_collection.insert_one(user_data)
-        user_data["_id"] = result.inserted_id
+    Returns:
+        UserRegisterResponse: Message and user Id
+    """
+    service = UserService()
+    return await service.register_user(request)
 
-        return {"msg": "User created", "user_id": str(result.inserted_id)}
 
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        ) from e
+@router.post(
+    "/forgot-password",
+    response_description="Forget password",
+    status_code=status.HTTP_200_OK,
+    response_model_by_alias=False,
+)
+async def forgot_password(request: ForgotPasswordRequest, bg: BackgroundTasks):
+    service = UserService()
+    return await service.forgot_password(request, bg)
+
+
+@router.post(
+    "/reset-password",
+    response_description="Reset password",
+    status_code=status.HTTP_200_OK,
+    response_model_by_alias=False,
+)
+async def reset_password(data: ResetPasswordRequest, token: str = Query(...)):
+    service = UserService()
+    return await service.reset_password(data, token)
