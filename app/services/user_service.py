@@ -1,11 +1,11 @@
 """Module providing user service layer"""
 
-from fastapi import HTTPException, status, BackgroundTasks, Query
+import logging
+from fastapi import HTTPException, status, BackgroundTasks, Query, Response
 from fastapi_mail import MessageSchema, MessageType, FastMail
 
 from app.schemas.user_schema import (
     UserLoginRequest,
-    UserLoginResponse,
     UserRegisterRequest,
     UserRegisterResponse,
 )
@@ -15,37 +15,33 @@ from app.util.jwt_util import (
     create_access_token,
     create_reset_password_token,
     verify_reset_password_token,
+    ACCESS_TOKEN_EXPIRE_MINUTE,
 )
 from app.config.mail_config import mail_conf
 from app.schemas.user_schema import ForgotPasswordRequest, ResetPasswordRequest
 from app.config.config import settings
+from app.exceptions.auth_exception import UserNotFoundError
+
+logger = logging.getLogger(__name__)
 
 
 class UserService:
     """User service class"""
 
-    def __init__(self):
-        self.repo = UserRepository()
+    def __init__(self, user_repo: UserRepository):
+        self.user_repo = user_repo
 
-    async def login_user(self, request: UserLoginRequest) -> UserLoginResponse:
-        """Login logic
-
-        Args:
-            request (UserLoginRequest): Email and password
-
-        Raises:
-            HTTPException: 404 Not Found
-            HTTPException: 401 Unauthorized
-            HTTPException: 500 Internal Server Error
-
-        Returns:
-            UserLoginResponse: Access token
-        """
-        user = await self.repo.get_by_email(email=request.email)
-        if not user:
+    async def login_user(self, request: UserLoginRequest, response: Response):
+        try:
+            user = await self.user_repo.get_by_email(request.email)
+        except UserNotFoundError:
+            logger.error("User not found")
+            raise
+        except Exception as e:
+            logger.exception("Login failed")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-            )
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Server error"
+            ) from e
 
         try:
             # Verify password
@@ -55,9 +51,19 @@ class UserService:
                 )
 
             # Generate access token
-            token = create_access_token(data={"sub": str(user.id)})
+            access_token = create_access_token(data={"sub": str(user.id)})
 
-            return UserLoginResponse(access_token=token)
+            response = Response(content="Login succesfully")
+            response.set_cookie(
+                key="access_token",
+                value=f"Bearer {access_token}",
+                httponly=True,
+                max_age=ACCESS_TOKEN_EXPIRE_MINUTE,
+                secure=True,
+                samesite="lax",
+            )
+
+            return response
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
@@ -77,7 +83,7 @@ class UserService:
             UserRegisterResponse: Successful message and user Id
         """
         # Check for existing user
-        existing_user = await self.repo.get_by_email(request.email)
+        existing_user = await self.user_repo.exist_email(request.email)
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="User already exists"
@@ -90,10 +96,10 @@ class UserService:
 
             # Insert into database
             user_data = request.model_dump(by_alias=True, exclude="id")
-            result = await self.repo.create(user_data)
+            result = await self.user_repo.create(user_data)
 
             return UserRegisterResponse(
-                msg="User created", user_id=str(result.inserted_id)
+                msg="User created", user_id=result
             )
 
         except Exception as e:
@@ -116,11 +122,13 @@ class UserService:
         Returns:
             dict[str, str]: Successful message
         """
-        user = await self.repo.get_by_email(request.email)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-            )
+        try:
+            user = await self.user_repo.get_by_email(request.email)
+        except UserNotFoundError:
+            return {"message": "If email exists, reset link sent"}
+        except Exception as e:
+            logger.exception("Password reset failed")
+            raise HTTPException(500, "Server error") from e
 
         reset_token = create_reset_password_token(request.email)
         url = f"http://127.0.0.1:8000/api/auth/reset-password?token={reset_token}"
@@ -146,7 +154,7 @@ class UserService:
 
         Args:
             request (ResetPasswordRequest): New password and confirm new password
-            token (str, optional): Reset password token query from parameter. Defaults to Query(...).
+            token (str, optional): Reset password token query from parameter
 
         Raises:
             HTTPException: 400 BAD REQUEST, "Invalid or expired token"
@@ -169,9 +177,7 @@ class UserService:
             )
 
         new_password = hash_password(request.new_password)
-        result = await self.repo.collection.update_one(
-            {"email": email}, {"$set": {"password": new_password}}
-        )
+        result = await self.user_repo.update_password(email, new_password)
 
         if result.modified_count != 1:
             raise HTTPException(
@@ -180,3 +186,17 @@ class UserService:
             )
 
         return {"msg": "Password updated successfully"}
+
+    async def logout(self, response: Response):
+        """
+        Logout user by deleting HTTP cookie token
+
+        Args:
+            response (Response): Customize response by delete access token
+
+        Returns:
+            JSON: {"message": "Successfully logged out"}
+        """
+        response.delete_cookie(key="access_token")
+
+        return {"message": "Successfully logged out"}
