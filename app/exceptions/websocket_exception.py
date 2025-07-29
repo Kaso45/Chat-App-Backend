@@ -1,0 +1,2 @@
+class SendMessageError(Exception):
+    pass

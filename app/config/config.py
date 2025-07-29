@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     SENDER_MAIL: str
     SENDER_MAIL_PASSWORD: str
     ALGORITHM: str
+    REDIS_PASSWORD: str
 
     model_config = SettingsConfigDict(env_file=".env")
 

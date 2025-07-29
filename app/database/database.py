@@ -7,6 +7,8 @@ from app.config.config import settings
 client = AsyncIOMotorClient(settings.MONGO_URI)
 db = client.get_database("chatapp")
 user_collection = db.get_collection("users")
+chat_collection = db.get_collection("chats")
+message_collection = db.get_collection("messages")
 
 # Send a ping to confirm a successful connection
 try:
