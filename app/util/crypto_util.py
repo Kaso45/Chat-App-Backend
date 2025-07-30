@@ -6,12 +6,14 @@ from app.config.config import settings
 key = settings.FERNET_SECRET_KEY
 cipher = Fernet(key)
 
+
 def encrypt_data(data: str):
     """Function for data encryption"""
     try:
         return cipher.encrypt(data.encode())
     except Exception as e:
         raise RuntimeError("Encryption failed") from e
+
 
 def decrypt_data(encrypted_data: str):
     """Function for data decryption"""
