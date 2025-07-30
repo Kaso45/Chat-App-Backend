@@ -12,6 +12,9 @@ from app.repositories.user_repository import UserRepository
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Startup event
+    """
     user_repo = UserRepository()
     await user_repo.ensure_indexes()
     yield
