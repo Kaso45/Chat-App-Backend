@@ -1,7 +1,7 @@
 """Module providing user service layer"""
 
 import logging
-from fastapi import HTTPException, status, BackgroundTasks, Query, Response
+from fastapi import Depends, HTTPException, status, BackgroundTasks, Query, Response
 from fastapi_mail import MessageSchema, MessageType, FastMail
 
 from app.schemas.user_schema import (
@@ -23,6 +23,11 @@ from app.config.config import settings
 from app.exceptions.auth_exception import UserNotFoundError
 
 logger = logging.getLogger(__name__)
+
+
+def get_mail():
+    """FastMail injection"""
+    return FastMail(mail_conf)
 
 
 class UserService:
@@ -106,7 +111,10 @@ class UserService:
             ) from e
 
     async def forgot_password(
-        self, request: ForgotPasswordRequest, bg: BackgroundTasks
+        self,
+        request: ForgotPasswordRequest,
+        bg: BackgroundTasks,
+        fm: FastMail = Depends(get_mail),
     ):
         """Send forgot password email
 
@@ -129,7 +137,7 @@ class UserService:
             raise HTTPException(500, "Server error") from e
 
         reset_token = create_reset_password_token(request.email)
-        url = f"http://127.0.0.1:8000/api/auth/reset-password?token={reset_token}"
+        url = f"http://localhost:3000/api/auth/reset-password?token={reset_token}"
 
         message = MessageSchema(
             subject="Reset your password",
@@ -141,7 +149,6 @@ class UserService:
             },
             subtype=MessageType.html,
         )
-        fm = FastMail(mail_conf)
         bg.add_task(fm.send_message, message, template_name="reset_password_email.html")
         return {"msg": "Email sent"}
 
