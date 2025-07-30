@@ -8,7 +8,6 @@ from app.custom_classes.pyobjectid import PyObjectId
 
 class UserModel(BaseModel):
     """Pydantic model for user"""
-
     id: Optional[PyObjectId] = Field(default=None, alias="_id")
     email: EmailStr
     username: str

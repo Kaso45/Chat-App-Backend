@@ -3,6 +3,32 @@ This is the backend for the chat app application that I working on with my teamm
 
 https://github.com/ThanhfVux2102/F.E-Chat-Web
 
+# Initialization
+- Use the local environment:
+```
+Windows Powershell:
+.venv/Scripts/Activate.ps1
+```
+
+- Get all the needed dependencies:
+```
+pip install -r requirements.txt
+```
+
+- Run in development mode:
+```
+fastapi dev main.py
+
+or
+
+uvicorn app.main:app --reload
+```
+
+- API docs:
+```
+localhost:8000/docs
+```
+
 # API Documentation
 ## Auth Endpoints
 ### Login
@@ -19,7 +45,7 @@ https://github.com/ThanhfVux2102/F.E-Chat-Web
 
 ```
 {
-    "access_token": "string"
+    "Login succesfully"
 }
 ```
 
@@ -111,5 +137,16 @@ https://github.com/ThanhfVux2102/F.E-Chat-Web
 ```
 {
     "detail": "Password not match"
+}
+```
+
+### Logout
+- Method: `POST`
+- URL: {{BaseURL}}/api/auth/logout
+- Responses:
+
+```
+{
+    "Successfully logged out",
 }
 ```

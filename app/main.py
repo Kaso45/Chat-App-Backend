@@ -1,11 +1,24 @@
 """Main application"""
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.user_router import router as authentication_router
+from app.repositories.user_repository import UserRepository
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Startup event
+    """
+    user_repo = UserRepository()
+    await user_repo.ensure_indexes()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 # Middlewares
 app.add_middleware(
