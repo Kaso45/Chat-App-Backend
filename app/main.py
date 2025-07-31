@@ -5,6 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.user_router import router as authentication_router
+from app.routers.chat_router import router as chat_router
+from app.websocket.websocket import router as websocket_router
 from app.repositories.user_repository import UserRepository
 
 
@@ -31,3 +33,5 @@ app.add_middleware(
 
 # Routers
 app.include_router(authentication_router)
+app.include_router(chat_router)
+app.include_router(websocket_router)
