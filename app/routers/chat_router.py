@@ -31,7 +31,8 @@ async def create_personal_chat(
     request_schema: PersonalChatCreate,
     chat_service: ChatService = Depends(get_chat_service),
 ):
-    return await chat_service.create_personal_chat(request_schema)
+    await chat_service.create_personal_chat(request_schema)
+    return {"message: Successfully create personal chat"}
 
 
 @router.post("/create/group")
@@ -39,4 +40,5 @@ async def create_group_chat(
     request_schema: GroupChatCreate,
     chat_service: ChatService = Depends(get_chat_service),
 ):
-    return await chat_service.create_group_chat(request_schema)
+    await chat_service.create_group_chat(request_schema)
+    return {"message: Successfully create group chat"}
