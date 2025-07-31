@@ -1,15 +1,19 @@
 """Module providing function to manage JWT token"""
 
+import logging
 from datetime import timedelta, datetime, timezone
 from jose import jwt, JWTError
 
 from app.config.config import settings
+
 
 ACCESS_TOKEN_SECRET = settings.ACCESS_TOKEN_SECRET
 RESET_PASSWORD_TOKEN_SECRET = settings.RESET_PASSWORD_TOKEN_SECRET
 ALGORITHM = settings.ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTE = settings.ACCESS_TOKEN_EXPIRE_MINUTE
 RESET_PASSWORD_TOKEN_EXPIRE_MINUTE = settings.RESET_PASSWORD_TOKEN_EXPIRE_MINUTE
+
+logger = logging.getLogger(__name__)
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
@@ -59,4 +63,14 @@ def verify_reset_password_token(token: str):
         payload = jwt.decode(token, RESET_PASSWORD_TOKEN_SECRET, algorithms=[ALGORITHM])
         return payload.get("sub")
     except JWTError:
+        logger.error("Cannot decode JWT reset password token")
+        return None
+
+
+def verify_token(token: str) -> str:
+    try:
+        payload = jwt.decode(token, ACCESS_TOKEN_SECRET, algorithms=ALGORITHM)
+        return payload.get("sub")
+    except JWTError:
+        logger.error("Cannot decode JWT access token")
         return None
