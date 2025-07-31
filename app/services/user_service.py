@@ -1,7 +1,7 @@
 """Module providing user service layer"""
 
 import logging
-from fastapi import Depends, HTTPException, status, BackgroundTasks, Query, Response
+from fastapi import HTTPException, status, BackgroundTasks, Query, Response
 from fastapi_mail import MessageSchema, MessageType, FastMail
 
 from app.schemas.user_schema import (
@@ -114,20 +114,7 @@ class UserService:
         self,
         request: ForgotPasswordRequest,
         bg: BackgroundTasks,
-        fm: FastMail = Depends(get_mail),
     ):
-        """Send forgot password email
-
-        Args:
-            request (ForgotPasswordRequest): Email address
-            bg (BackgroundTasks): BackgroundTasks class handles sending mail in the background
-
-        Raises:
-            HTTPException: 404 NOT FOUND, "User not found"
-
-        Returns:
-            dict[str, str]: Successful message
-        """
         try:
             user = await self.user_repo.get_by_email(request.email)
         except UserNotFoundError:
@@ -149,6 +136,7 @@ class UserService:
             },
             subtype=MessageType.html,
         )
+        fm = get_mail()
         bg.add_task(fm.send_message, message, template_name="reset_password_email.html")
         return {"msg": "Email sent"}
 
