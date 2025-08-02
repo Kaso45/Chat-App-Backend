@@ -100,7 +100,7 @@ class UserService:
             request.password = hashed_password
 
             # Insert into database
-            user_data = request.model_dump(by_alias=True, exclude="id")
+            user_data = request.model_dump(by_alias=True, exclude={"id"})
             result = await self.user_repo.create(user_data)
 
             return UserRegisterResponse(msg="User created", user_id=result)
