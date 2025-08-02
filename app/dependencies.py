@@ -24,7 +24,7 @@ def get_user_repository() -> UserRepository:
     """
     User repository injection
     """
-    return UserRepository
+    return UserRepository()
 
 
 async def get_current_user_ws(websocket: WebSocket) -> str:
