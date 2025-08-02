@@ -37,4 +37,4 @@ class MessageModel(BaseModel):
     def from_create(cls, message: MessageCreate, sender_id: str):
         data = message.model_dump()
         data.pop("sender_id", None)
-        return cls(**data, sender_id=sender_id)
+        return cls(**data, sender_id=PyObjectId(sender_id))

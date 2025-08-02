@@ -5,6 +5,7 @@ from motor.motor_asyncio import AsyncIOMotorCollection
 from app.database.database import message_collection
 from app.exceptions.db_exception import DatabaseOperationError
 from app.custom_classes.pyobjectid import PyObjectId
+from app.exceptions.message_exception import MessageNotFoundError
 from app.models.message import MessageModel
 from app.redis_client import redis_chat_key, r
 
@@ -18,7 +19,10 @@ class MessageRepository:
     async def get_by_id(self, message_id: str):
         try:
             obj_id = PyObjectId(message_id)
-            message = self.collection.find_one({"_id": obj_id})
+            message = await self.collection.find_one({"_id": obj_id})
+            if not message:
+                raise MessageNotFoundError(f"message with id {message_id} not found")
+
             return MessageModel(**message)
         except DatabaseOperationError:
             logger.error("Failed to fetch for message by ID")
@@ -55,8 +59,8 @@ class MessageRepository:
     ):
         key = redis_chat_key(chat_id)
         message_dict = message.model_dump(mode="json")
-        await r.lpush(key, json.dumps(message_dict))
-        await r.ltrim(key, 0, limit - 1)
+        await r.lpush(key, json.dumps(message_dict))  # type: ignore
+        await r.ltrim(key, 0, limit - 1)  # type: ignore
 
     # async def get_recent_messages(self, chat_id: str, limit: int) -> list[MessageModel]:
     #     cursor = (
