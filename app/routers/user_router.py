@@ -1,6 +1,7 @@
 """Module providing functions for authentication endpoint"""
 
 from fastapi import APIRouter, status, BackgroundTasks, Query, Depends, Response
+from fastapi.responses import JSONResponse
 
 from app.schemas.user_schema import (
     UserLoginRequest,
@@ -35,7 +36,7 @@ def get_user_service(
 )
 async def login(
     request: UserLoginRequest,
-    response: Response,
+    response: JSONResponse,
     user_service: UserService = Depends(get_user_service),
 ):
     return await user_service.login_user(request=request, response=response)
