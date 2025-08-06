@@ -2,6 +2,7 @@
 
 import logging
 from fastapi import HTTPException, status, BackgroundTasks, Query, Response
+from fastapi.responses import JSONResponse
 from fastapi_mail import MessageSchema, MessageType, FastMail
 
 from app.schemas.user_schema import (
@@ -36,7 +37,7 @@ class UserService:
     def __init__(self, user_repo: UserRepository):
         self.user_repo = user_repo
 
-    async def login_user(self, request: UserLoginRequest, response: Response):
+    async def login_user(self, request: UserLoginRequest, response: JSONResponse):
         try:
             user = await self.user_repo.get_by_email(request.email)
         except UserNotFoundError:
@@ -58,7 +59,7 @@ class UserService:
             # Generate access token
             access_token = create_access_token(data={"sub": str(user.id)})
 
-            response = Response(content="Login succesfully")
+            response = JSONResponse(content={"message": "Login successfully"})
             response.set_cookie(
                 key="access_token",
                 value=f"Bearer {access_token}",
