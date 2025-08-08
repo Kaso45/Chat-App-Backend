@@ -101,7 +101,7 @@ class UserService:
             request.password = hashed_password
 
             # Insert into database
-            user_data = request.model_dump(by_alias=True, exclude="id")
+            user_data = request.model_dump(by_alias=True, exclude={"id"})
             result = await self.user_repo.create(user_data)
 
             return UserRegisterResponse(msg="User created", user_id=result)
@@ -125,7 +125,7 @@ class UserService:
             raise HTTPException(500, "Server error") from e
 
         reset_token = create_reset_password_token(request.email)
-        url = f"http://localhost:3000/api/auth/reset-password?token={reset_token}"
+        url = f"http://localhost:3000/reset/password/{reset_token}"
 
         message = MessageSchema(
             subject="Reset your password",
