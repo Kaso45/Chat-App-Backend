@@ -6,7 +6,12 @@ from app.schemas.websocket_schema import WebsocketReceivePayload
 from app.services.message_service import MessageService
 from app.websocket.websocket_manager import manager
 from app.repositories.chat_repository import ChatRepository
-from app.repositories.message_repository import MessageRepository
+from app.repositories.message_repository import (
+    MessageRedisRepository,
+    MessageRepository,
+)
+from app.dependencies import get_redis_client
+from redis.asyncio import Redis
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +26,16 @@ def get_message_repository() -> MessageRepository:
     return MessageRepository()
 
 
+def get_message_cache(redis: Redis = Depends(get_redis_client)):
+    return MessageRedisRepository(redis)
+
+
 def get_message_service(
     chat_repo: ChatRepository = Depends(get_chat_repository),
     message_repo: MessageRepository = Depends(get_message_repository),
+    message_cache: MessageRedisRepository = Depends(get_message_cache),
 ):
-    return MessageService(chat_repo, message_repo)
+    return MessageService(chat_repo, message_repo, message_cache)
 
 
 @router.websocket("")
@@ -33,6 +43,7 @@ async def websocket_endpoint(
     websocket: WebSocket,
     user_id: str = Depends(get_current_user_ws),
     message_service: MessageService = Depends(get_message_service),
+    redis: Redis = Depends(get_redis_client),
 ):
     await manager.connect(websocket, user_id)
     try:
@@ -44,7 +55,8 @@ async def websocket_endpoint(
 
             if event_type == "load_chat":
                 chat_id = payload_obj.chat_id
-                history = await message_service.get_cache_messages(chat_id)
+                # Initial load from Redis (or DB fallback) using injected client
+                history = await message_service.get_cache_messages(chat_id, redis)
                 await websocket.send_json(history)
             elif event_type == "new_message":
                 message_data = payload_obj.data

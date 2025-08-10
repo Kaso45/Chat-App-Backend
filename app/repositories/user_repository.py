@@ -1,6 +1,7 @@
 """Module providing user repository layer"""
 
 import logging
+from typing import Optional, Iterable
 from pydantic import EmailStr
 from motor.motor_asyncio import AsyncIOMotorCollection
 
@@ -35,6 +36,8 @@ class UserRepository:
             raise UserNotFoundError("User not found")
         return UserModel(**user)
 
+    # Removed duplicate early definition of get_usernames_by_ids
+
     async def exist_email(self, email: EmailStr) -> bool:
         user = await self.collection.find_one({"email": email})
         if user:
@@ -48,6 +51,26 @@ class UserRepository:
             return UserModel(**user) if user else None
         except Exception as e:
             raise DatabaseOperationError(f"Failed to fetch user by ID: {str(e)}") from e
+
+    async def get_usernames_by_ids(
+        self, user_ids: Iterable[str]
+    ) -> dict[str, Optional[str]]:
+        """Fetch usernames for a set/list of user ids in one query.
+
+        Returns a dict mapping user_id (str) -> username (str|None). Missing users
+        will not be present in the result map.
+        """
+        try:
+            unique_ids = list({uid for uid in user_ids if uid})
+            if not unique_ids:
+                return {}
+
+            object_ids = [PyObjectId(uid) for uid in unique_ids]
+            cursor = self.collection.find({"_id": {"$in": object_ids}}, {"username": 1})
+            docs = await cursor.to_list(length=None)
+            return {str(doc["_id"]): doc.get("username") for doc in docs}
+        except Exception as e:
+            raise DatabaseOperationError(f"Failed to fetch usernames: {str(e)}") from e
 
     async def create(self, data: dict):
         try:

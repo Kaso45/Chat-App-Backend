@@ -3,6 +3,7 @@ import asyncio
 from fastapi import WebSocket, WebSocketException
 
 from app.models.message import MessageModel
+from app.schemas.chat_schema import ChatRoomResponse
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,35 @@ class WebsocketManager:
                         )
                     except WebSocketException as e:
                         logger.error("Error broadcasting to %s: %s", user_id, e)
+
+    async def broadcast_new_chat_room(
+        self, chat_room: ChatRoomResponse, participants: list[str]
+    ):
+        """
+        Broadcast a new chat room creation to all participants.
+        """
+        data = {
+            "type": "new_chat_room",
+            "chat_room": {
+                "chat_id": chat_room.chat_id,
+                "chat_name": chat_room.chat_name,
+                "last_updated": (
+                    chat_room.last_updated.isoformat()
+                    if chat_room.last_updated
+                    else None
+                ),
+            },
+        }
+
+        async with self._lock:
+            for user_id in participants:
+                for ws in self.user_connections.get(user_id, set()):
+                    try:
+                        await ws.send_json(data)
+                    except WebSocketException as e:
+                        logger.error(
+                            "Error broadcasting new chat room to %s: %s", user_id, e
+                        )
 
 
 manager = WebsocketManager()
