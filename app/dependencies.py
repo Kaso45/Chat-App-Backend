@@ -18,13 +18,14 @@ from app.exceptions.auth_exception import (
     HeaderParsingError,
     UserNotFoundError,
 )
+from app.redis_client import r
 
 
 def get_user_repository() -> UserRepository:
     """
     User repository injection
     """
-    return UserRepository
+    return UserRepository()
 
 
 async def get_current_user_ws(websocket: WebSocket) -> str:
@@ -73,3 +74,7 @@ async def get_current_user(
     if not user:
         raise UserNotFoundError("User not found")
     return user
+
+
+def get_redis_client():
+    return r

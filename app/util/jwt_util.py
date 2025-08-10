@@ -5,6 +5,7 @@ from datetime import timedelta, datetime, timezone
 from jose import jwt, JWTError
 
 from app.config.config import settings
+from app.exceptions.auth_exception import JWTDecodeError
 
 
 ACCESS_TOKEN_SECRET = settings.ACCESS_TOKEN_SECRET
@@ -50,7 +51,7 @@ def create_reset_password_token(email: str):
     return jwt.encode(data, RESET_PASSWORD_TOKEN_SECRET, algorithm=ALGORITHM)
 
 
-def verify_reset_password_token(token: str):
+def verify_reset_password_token(token: str) -> str:
     """Verify reset password token
 
     Args:
@@ -61,16 +62,22 @@ def verify_reset_password_token(token: str):
     """
     try:
         payload = jwt.decode(token, RESET_PASSWORD_TOKEN_SECRET, algorithms=[ALGORITHM])
-        return payload.get("sub")
-    except JWTError:
-        logger.error("Cannot decode JWT reset password token")
-        return None
+        subject = payload.get("sub")
+        if subject is None:
+            raise JWTDecodeError("Token payload missing 'sub' claim")
+
+        return subject
+    except JWTError as e:
+        raise JWTDecodeError("Failed to decode reset password token") from e
 
 
 def verify_token(token: str) -> str:
     try:
         payload = jwt.decode(token, ACCESS_TOKEN_SECRET, algorithms=ALGORITHM)
-        return payload.get("sub")
-    except JWTError:
-        logger.error("Cannot decode JWT access token")
-        return None
+        subject = payload.get("sub")
+        if subject is None:
+            raise JWTDecodeError("Token payload missing 'sub' claim")
+
+        return subject
+    except JWTError as e:
+        raise JWTDecodeError("Failed to decode access token") from e

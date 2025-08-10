@@ -1,14 +1,13 @@
-import os
+from pathlib import Path
 from fastapi_mail import ConnectionConfig
-
+from pydantic import SecretStr
 from app.config.config import settings
 
-dirname = os.path.dirname(__file__)
-templates_folder = os.path.join(dirname, "../templates")
+templates_folder = (Path(__file__).parent.parent / "templates").resolve()
 
 mail_conf = ConnectionConfig(
     MAIL_USERNAME=settings.SENDER_MAIL,
-    MAIL_PASSWORD=settings.SENDER_MAIL_PASSWORD,
+    MAIL_PASSWORD=SecretStr(settings.SENDER_MAIL_PASSWORD),
     MAIL_FROM=settings.SENDER_MAIL,
     MAIL_PORT=587,
     MAIL_SERVER="smtp.gmail.com",

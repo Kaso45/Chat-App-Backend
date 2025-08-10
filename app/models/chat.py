@@ -13,6 +13,7 @@ class ChatModel(BaseModel):
     participants: list[str]  # User IDs
     name: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     admins: list[str] = []  # For group chat
 
     model_config = ConfigDict(

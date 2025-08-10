@@ -18,9 +18,12 @@ class Settings(BaseSettings):
     SENDER_MAIL: str
     SENDER_MAIL_PASSWORD: str
     ALGORITHM: str
+    REDIS_HOST: str
+    REDIS_PORT: int
+    REDIS_USERNAME: str
     REDIS_PASSWORD: str
 
     model_config = SettingsConfigDict(env_file=".env")
 
 
-settings = Settings()
+settings = Settings()  # type: ignore

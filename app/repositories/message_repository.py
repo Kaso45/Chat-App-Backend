@@ -1,12 +1,16 @@
-import json
 import logging
+from datetime import datetime
+from typing import Optional
+
 from motor.motor_asyncio import AsyncIOMotorCollection
+from redis.asyncio import Redis
 
 from app.database.database import message_collection
 from app.exceptions.db_exception import DatabaseOperationError
 from app.custom_classes.pyobjectid import PyObjectId
+from app.exceptions.message_exception import MessageNotFoundError
 from app.models.message import MessageModel
-from app.redis_client import redis_chat_key, r
+from app.redis_client import redis_chat_messages_key, redis_message_data_key
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +22,10 @@ class MessageRepository:
     async def get_by_id(self, message_id: str):
         try:
             obj_id = PyObjectId(message_id)
-            message = self.collection.find_one({"_id": obj_id})
+            message = await self.collection.find_one({"_id": obj_id})
+            if not message:
+                raise MessageNotFoundError(f"message with id {message_id} not found")
+
             return MessageModel(**message)
         except DatabaseOperationError:
             logger.error("Failed to fetch for message by ID")
@@ -50,20 +57,44 @@ class MessageRepository:
         except Exception as e:
             raise DatabaseOperationError(f"Failed to delete message: {str(e)}") from e
 
-    async def cache_messages(
-        self, chat_id: str, message: MessageModel, limit: int = 50
+    def get_messages_cursor(
+        self, chat_id: str, limit: int, lt_timestamp: Optional[datetime] = None
     ):
-        key = redis_chat_key(chat_id)
-        message_dict = message.model_dump(mode="json")
-        await r.lpush(key, json.dumps(message_dict))
-        await r.ltrim(key, 0, limit - 1)
+        query: dict = {"chat_id": PyObjectId(chat_id)}
+        if lt_timestamp is not None:
+            query["timestamp"] = {"$lt": lt_timestamp}
+        cursor = self.collection.find(query).sort("timestamp", -1).limit(limit)
+        return cursor
 
-    # async def get_recent_messages(self, chat_id: str, limit: int) -> list[MessageModel]:
-    #     cursor = (
-    #         self.collection.find({"chat_id": chat_id})
-    #         .sort("created_at", -1)
-    #         .limit(limit)
-    #     )
-    #     results = await cursor.to_list(length=limit)
-    #     results.reverse()
-    #     return [MessageModel(**message) for message in results]
+
+class MessageRedisRepository:
+    def __init__(self, redis: Redis) -> None:
+        self.redis = redis
+
+    async def cache_message(self, chat_id: str, message: MessageModel):
+        key = redis_chat_messages_key(chat_id)
+        message_id = str(message.id)
+        score = float(message.timestamp.timestamp() * 1000)
+        message_hash_key = redis_message_data_key(message_id)
+
+        message_data = {
+            "id": message_id,
+            "content": message.content or "",
+            "sender": message.sender_id or "",
+            "timestamp": message.timestamp.isoformat(),
+            "chat_id": chat_id,
+            "message_type": getattr(
+                message.message_type, "value", str(message.message_type)
+            ),
+            "message_status": getattr(
+                message.message_status, "value", str(message.message_status)
+            ),
+            "is_edited": int(bool(message.is_edited)),
+        }
+
+        pipe = self.redis.pipeline()
+        pipe.zadd(key, {message_id: score})
+        pipe.hset(message_hash_key, mapping=message_data)
+        pipe.expire(key, 43200)
+        pipe.expire(message_hash_key, 43200)
+        await pipe.execute()

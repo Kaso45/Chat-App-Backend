@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.repositories.chat_repository import ChatRepository
 from app.routers.user_router import router as authentication_router
 from app.routers.chat_router import router as chat_router
 from app.websocket.websocket import router as websocket_router
@@ -16,7 +17,9 @@ async def lifespan(app: FastAPI):
     Startup event
     """
     user_repo = UserRepository()
+    chat_repo = ChatRepository()
     await user_repo.ensure_indexes()
+    await chat_repo.ensure_indexes()
     yield
 
 
