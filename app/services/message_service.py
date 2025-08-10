@@ -149,8 +149,10 @@ class MessageService:
                 # cursor is epoch milliseconds string
                 ms = int(params.cursor)
                 lt_ts = datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
-            except Exception:
-                raise HTTPException(status_code=400, detail="Invalid cursor format")
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400, detail="Invalid cursor format"
+                ) from e
 
         cursor = self.message_repo.get_messages_cursor(chat_id, limit, lt_ts)
         docs = await cursor.to_list(length=limit)

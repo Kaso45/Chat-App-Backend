@@ -1,5 +1,6 @@
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from fastapi.encoders import jsonable_encoder
 
 from app.dependencies import get_current_user_ws
 from app.schemas.websocket_schema import WebsocketReceivePayload
@@ -57,7 +58,7 @@ async def websocket_endpoint(
                 chat_id = payload_obj.chat_id
                 # Initial load from Redis (or DB fallback) using injected client
                 history = await message_service.get_cache_messages(chat_id, redis)
-                await websocket.send_json(history)
+                await websocket.send_json(jsonable_encoder(history))
             elif event_type == "new_message":
                 message_data = payload_obj.data
                 chat_id = payload_obj.chat_id
