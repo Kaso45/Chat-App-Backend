@@ -66,7 +66,7 @@ class UserService:
                 httponly=True,
                 max_age=ACCESS_TOKEN_EXPIRE_MINUTE,
                 secure=True,
-                samesite="lax",
+                samesite="none",
             )
 
             return response
