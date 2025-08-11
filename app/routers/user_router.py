@@ -13,6 +13,8 @@ from app.schemas.user_schema import (
 )
 from app.services.user_service import UserService
 from app.repositories.user_repository import UserRepository
+from app.dependencies import get_current_user
+from app.models.user import UserModel
 
 router = APIRouter(prefix="/api/auth", tags=["Users"])
 
@@ -129,3 +131,22 @@ async def logout(
         JSON: {"message": "Successfully logged out"}
     """
     return await user_service.logout(response)
+
+
+@router.get(
+    "/users",
+    response_description="List/search users",
+    status_code=status.HTTP_200_OK,
+)
+async def list_users(
+    q: str | None = Query(default=None, description="Search text for username/email"),
+    limit: int = Query(default=20, ge=1, le=50),
+    current_user: UserModel = Depends(get_current_user),
+    user_repo: UserRepository = Depends(get_user_repository),
+):
+    """Return a list of users for 'Find people' feature, excluding the caller."""
+    current_user_id = str(current_user.id)
+    results = await user_repo.search_users(
+        q, exclude_user_id=current_user_id, limit=limit
+    )
+    return {"items": results}

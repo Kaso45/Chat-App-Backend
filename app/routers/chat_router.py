@@ -36,8 +36,10 @@ async def create_personal_chat(
     chat_service: ChatService = Depends(get_chat_service),
 ):
     user_id = str(current_user.id)
-    await chat_service.create_personal_chat(user_id=user_id, data=request_schema)
-    return {"message": "Successfully create personal chat"}
+    result = await chat_service.create_personal_chat(
+        user_id=user_id, data=request_schema
+    )
+    return result
 
 
 @router.post("/create/group")
