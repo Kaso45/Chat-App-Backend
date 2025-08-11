@@ -49,8 +49,8 @@ async def create_group_chat(
     chat_service: ChatService = Depends(get_chat_service),
 ):
     user_id = str(current_user.id)
-    await chat_service.create_group_chat(user_id=user_id, data=request_schema)
-    return {"message": "Successfully create group chat"}
+    result = await chat_service.create_group_chat(user_id=user_id, data=request_schema)
+    return result
 
 
 @router.get("/me/view")
