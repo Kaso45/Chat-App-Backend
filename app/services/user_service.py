@@ -1,6 +1,7 @@
 """Module providing user service layer"""
 
 import logging
+from bson import MaxKey
 from fastapi import HTTPException, status, BackgroundTasks, Query, Response
 from fastapi.responses import JSONResponse
 from fastapi_mail import MessageSchema, MessageType, FastMail
@@ -64,7 +65,7 @@ class UserService:
                 key="access_token",
                 value=f"Bearer {access_token}",
                 httponly=True,
-                max_age=ACCESS_TOKEN_EXPIRE_MINUTE,
+                max_age=3600,
                 secure=True,
                 samesite="none",
                 path="/",
