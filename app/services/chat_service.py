@@ -9,6 +9,7 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
 from app.models.chat import ChatModel
+from app.enums.chat import ChatType
 from app.models.user import UserModel
 from app.repositories.chat_repository import ChatRepository, ChatRedisRepository
 from app.repositories.user_repository import UserRepository
@@ -117,7 +118,34 @@ class ChatService:
 
     async def create_group_chat(self, data: GroupChatCreate, user_id: str):
         try:
-            chat_doc = ChatModel.from_create(data)
+            # Normalize and validate participants
+            raw_participants = list(data.participants or [])
+            # Ensure creator is part of the group
+            if user_id not in raw_participants:
+                raw_participants.append(user_id)
+            # De-duplicate while preserving order
+            seen: set[str] = set()
+            participants: list[str] = []
+            for pid in raw_participants:
+                if pid and pid not in seen:
+                    seen.add(pid)
+                    participants.append(pid)
+            if len(participants) < 2:
+                raise ValueError("Group chat must include at least 2 participants")
+
+            # Ensure creator is an admin at minimum
+            admins = list(getattr(data, "admins", []) or [])
+            if user_id not in admins:
+                admins.append(user_id)
+
+            # Build chat model explicitly to guarantee group type
+            chat_doc = ChatModel(
+                chat_type=ChatType.GROUP,
+                participants=participants,
+                name=data.name,
+                admins=admins,
+            )
+
             chat_id = await self.chat_repo.create(chat_doc)
             await self.chat_cache.cache_chat_room(user_id, chat_doc, chat_id=chat_id)
 
@@ -131,7 +159,7 @@ class ChatService:
             # Broadcast to all participants
             await manager.broadcast_new_chat_room(chat_room, chat_doc.participants)
 
-            return {"message": "Group chat successfully created"}
+            return {"message": "Group chat successfully created", "chat_id": chat_id}
         except ValueError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data input"
