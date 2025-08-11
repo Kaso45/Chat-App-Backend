@@ -67,6 +67,7 @@ class UserService:
                 max_age=ACCESS_TOKEN_EXPIRE_MINUTE,
                 secure=True,
                 samesite="none",
+                path="/",
             )
 
             return response
