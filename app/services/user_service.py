@@ -1,7 +1,6 @@
 """Module providing user service layer"""
 
 import logging
-from bson import MaxKey
 from fastapi import HTTPException, status, BackgroundTasks, Query, Response
 from fastapi.responses import JSONResponse
 from fastapi_mail import MessageSchema, MessageType, FastMail
@@ -17,7 +16,6 @@ from app.util.jwt_util import (
     create_access_token,
     create_reset_password_token,
     verify_reset_password_token,
-    ACCESS_TOKEN_EXPIRE_MINUTE,
 )
 from app.config.mail_config import mail_conf
 from app.schemas.user_schema import ForgotPasswordRequest, ResetPasswordRequest
