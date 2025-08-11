@@ -112,3 +112,49 @@ class UserRepository:
             {"email": email}, {"$set": {"password": password}}
         )
         return result
+
+    async def search_users(
+        self,
+        search: Optional[str] = None,
+        exclude_user_id: Optional[str] = None,
+        limit: int = 20,
+    ) -> list[dict]:
+        """Search users by username or email, optionally excluding one user.
+
+        Returns a list of lightweight dicts: {"id", "username", "email"}
+        """
+        try:
+            query: dict = {}
+            if search:
+                query["$or"] = [
+                    {"username": {"$regex": search, "$options": "i"}},
+                    {"email": {"$regex": search, "$options": "i"}},
+                ]
+
+            if exclude_user_id:
+                try:
+                    query["_id"] = {"$ne": PyObjectId(exclude_user_id)}
+                except Exception as e:  # pragma: no cover - defensive
+                    # Ignore invalid ObjectId string silently to avoid blocking search
+                    logger.warning(
+                        "Invalid exclude_user_id %s: %s", exclude_user_id, str(e)
+                    )
+                    query.pop("_id", None)
+
+            projection = {"username": 1, "email": 1}
+            cursor = self.collection.find(query, projection).limit(
+                max(1, min(limit, 50))
+            )
+            docs = await cursor.to_list(length=None)
+            return [
+                {
+                    "id": str(doc.get("_id")),
+                    "username": doc.get("username"),
+                    "email": doc.get("email"),
+                }
+                for doc in docs
+            ]
+        except Exception as e:
+            raise DatabaseOperationError(
+                f"Failed to search users from DB: {str(e)}"
+            ) from e

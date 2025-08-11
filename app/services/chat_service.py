@@ -69,8 +69,29 @@ class ChatService:
         data: PersonalChatCreate,
     ):
         try:
-            chat_doc = ChatModel.from_create(data)
-            chat_id = await self.chat_repo.create(chat_doc)
+            # Ensure exactly two participants and current user included
+            participants = list(data.participants or [])
+            if len(participants) != 2 or user_id not in participants:
+                raise ValueError(
+                    "Personal chat must have exactly 2 participants including the current user"
+                )
+
+            # Lookup existing personal chat first
+            other_user_id = (
+                participants[0] if participants[1] == user_id else participants[1]
+            )
+            existing_id = await self.chat_repo.find_personal_chat_between(
+                user_id, other_user_id
+            )
+
+            if existing_id:
+                chat_id = existing_id
+                # Fetch the stored chat to preserve correct timestamps and metadata
+                chat_doc = await self.chat_repo.get_by_id(existing_id)
+            else:
+                chat_doc = ChatModel.from_create(data)
+                chat_id = await self.chat_repo.create(chat_doc)
+
             await self.chat_cache.cache_chat_room(user_id, chat_doc, chat_id=chat_id)
 
             # Create chat room response for broadcasting
@@ -83,7 +104,7 @@ class ChatService:
             # Broadcast to all participants
             await manager.broadcast_new_chat_room(chat_room, chat_doc.participants)
 
-            return {"message": "Chat room successfully created"}
+            return {"message": "Chat room ready", "chat_id": chat_id}
         except ValueError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data input"

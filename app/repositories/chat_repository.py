@@ -57,6 +57,30 @@ class ChatRepository:
         cursor = self.collection.find(query).sort(sort).limit(limit)
         return cursor
 
+    async def find_personal_chat_between(
+        self, user_a: str, user_b: str
+    ) -> Optional[str]:
+        """Return existing personal chat id for two users if exists.
+
+        The query orders the participants pair to be independent of user order.
+        """
+        try:
+            # participants contains exactly both user ids (size 2) and chat_type is personal
+            query = {
+                "chat_type": "personal",
+                "$and": [
+                    {"participants": {"$size": 2}},
+                    {"participants": {"$all": [user_a, user_b]}},
+                ],
+            }
+            # Limit projection to _id only
+            doc = await self.collection.find_one(query, {"_id": 1})
+            return str(doc.get("_id")) if doc else None
+        except Exception as e:
+            raise DatabaseOperationError(
+                f"Failed to find existing personal chat: {str(e)}"
+            ) from e
+
 
 class ChatRedisRepository:
     def __init__(self, redis: Redis):
