@@ -37,6 +37,7 @@ class WebsocketManager:
         Send a personal message to a recipient's active connections.
         """
         data = message.model_dump(mode="json")
+        chat_id = data.get("chat_id")
         async with self._lock:
             sockets = list(self.user_connections.get(recipient_id, set()))
         if not sockets:
@@ -44,7 +45,9 @@ class WebsocketManager:
             return
         for ws in sockets:
             try:
-                await ws.send_json({"type": "personal_message", "data": data})
+                await ws.send_json(
+                    {"type": "personal_message", "chat_id": chat_id, "data": data}
+                )
             except WebSocketException as e:
                 logger.error(
                     "Error sending personal message to %s: %s", recipient_id, e
