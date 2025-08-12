@@ -44,6 +44,7 @@ class MessageService:
             chat_dict = chat.model_dump()
         except ChatNotFoundError as e:
             logger.error("Cannot get chat room: %s", str(e))
+            raise HTTPException(status_code=404, detail="Chat not found") from e
 
         if str(sender_id) not in chat_dict["participants"]:
             logger.warning("Sender is not part of the chat conversation")
@@ -54,23 +55,46 @@ class MessageService:
             # Save message to database
             message_doc = MessageModel.from_create(message, sender_id, chat_id)
             result_id = await self.message_repo.create(message_doc)
+            # Cache-aside: push to Redis immediately for fast reads
+            try:
+                await self.message_cache_repo.cache_message(chat_id, message_doc)
+            except RedisError as cache_err:
+                logger.warning("Failed to cache message to Redis: %s", str(cache_err))
 
             try:
                 participants = chat_dict["participants"]
                 if chat_dict["chat_type"] == ChatType.PERSONAL:
+                    # Ensure exactly 2 participants and sender is in chat
+                    participants_list = list(participants or [])
+                    if (
+                        len(participants_list) != 2
+                        or str(sender_id) not in participants_list
+                    ):
+                        logger.warning(
+                            "Invalid personal chat participants configuration"
+                        )
+                        return
                     # send personal message
-                    recipient_id = next(
-                        (rec_id for rec_id in participants if rec_id != sender_id), None
+                    recipient_id = (
+                        participants_list[0]
+                        if participants_list[1] == str(sender_id)
+                        else participants_list[1]
                     )
 
                     if recipient_id is None:
                         logger.warning("No recipient found in personal chat")
                         return
 
-                    print("User connections:", manager.user_connections)
+                    # Mark message as SENT for websocket payload so clients don't get stuck at SENDING
+                    message_doc.message_status = MessageStatus.SENT
+                    # Deliver to recipient devices
                     await manager.send_personal_message(message_doc, recipient_id)
+                    # Also deliver to sender's own devices for multi-device sync
+                    await manager.send_personal_message(message_doc, str(sender_id))
                 elif chat_dict["chat_type"] == ChatType.GROUP:
                     # broadcast to chat participants for group chat
+                    # Mark message as SENT for websocket payload
+                    message_doc.message_status = MessageStatus.SENT
                     await manager.broadcast_message(message_doc, participants, chat_id)
 
                 # Change message status
