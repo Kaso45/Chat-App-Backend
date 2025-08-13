@@ -134,6 +134,15 @@ async def logout(
 
 
 @router.get(
+    "/me",
+    response_description="Get current user's username",
+    status_code=status.HTTP_200_OK,
+)
+async def get_username(current_user: UserModel = Depends(get_current_user)):
+    return {"username": current_user.username}
+
+
+@router.get(
     "/users",
     response_description="List/search users",
     status_code=status.HTTP_200_OK,
