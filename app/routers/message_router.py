@@ -11,7 +11,7 @@ from app.repositories.message_repository import (
 from app.services.message_service import MessageService
 
 
-router = APIRouter(prefix="/api/message")
+router = APIRouter(prefix="/api/message", tags=["Messages"])
 
 
 def get_message_repository():

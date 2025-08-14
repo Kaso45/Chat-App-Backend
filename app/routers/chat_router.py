@@ -11,7 +11,7 @@ from app.services.chat_service import ChatService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/chat")
+router = APIRouter(prefix="/api/chat", tags=["Chats"])
 
 
 def get_chat_repository():
