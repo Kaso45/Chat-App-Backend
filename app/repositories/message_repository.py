@@ -73,14 +73,16 @@ class MessageRedisRepository:
 
     async def cache_message(self, chat_id: str, message: MessageModel):
         key = redis_chat_messages_key(chat_id)
-        message_id = str(message.id)
+        # Ensure message_id is a string for Redis keys. Support PyObjectId or str.
+        mid = message.id
+        message_id = str(mid) if mid is not None else ""
         score = float(message.timestamp.timestamp() * 1000)
         message_hash_key = redis_message_data_key(message_id)
 
         message_data = {
             "id": message_id,
             "content": message.content or "",
-            "sender": message.sender_id or "",
+            "sender": str(message.sender_id) if message.sender_id is not None else "",
             "timestamp": message.timestamp.isoformat(),
             "chat_id": chat_id,
             "message_type": getattr(
