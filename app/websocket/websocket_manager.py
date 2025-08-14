@@ -1,5 +1,6 @@
 import logging
 import asyncio
+from typing import Optional, Set
 from fastapi import WebSocket, WebSocketException
 
 from app.models.message import MessageModel
@@ -54,7 +55,11 @@ class WebsocketManager:
                 )
 
     async def broadcast_message(
-        self, message: MessageModel, chat_participants: list[str], chat_id: str
+        self,
+        message: MessageModel,
+        chat_participants: list[str],
+        chat_id: str,
+        exclude_user_ids: Optional[Set[str]] = None,
     ):
         """
         Broadcast a message to all users registered in a given chat room.
@@ -62,6 +67,8 @@ class WebsocketManager:
         data = message.model_dump(mode="json")
         async with self._lock:
             for user_id in chat_participants:
+                if exclude_user_ids and user_id in exclude_user_ids:
+                    continue
                 for ws in self.user_connections.get(user_id, set()):
                     try:
                         await ws.send_json(

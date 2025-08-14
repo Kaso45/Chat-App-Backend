@@ -17,6 +17,7 @@ from app.repositories.message_repository import (
     MessageRepository,
 )
 from app.schemas.message_schema import MessageCreate, MessageResponse
+from app.custom_classes.pyobjectid import PyObjectId
 from app.exceptions.chat_exception import ChatNotFoundError
 from app.enums.chat import ChatType
 from app.websocket.websocket_manager import manager
@@ -52,9 +53,15 @@ class MessageService:
 
         # Save message
         try:
-            # Save message to database
+            # Save message to database. New outbound message starts as SENDING.
             message_doc = MessageModel.from_create(message, sender_id, chat_id)
+            message_doc.message_status = MessageStatus.SENDING
             result_id = await self.message_repo.create(message_doc)
+            # Populate the generated id back into the model so cache uses a string id
+            try:
+                message_doc.id = PyObjectId(result_id)
+            except Exception:
+                message_doc.id = None
             # Cache-aside: push to Redis immediately for fast reads
             try:
                 await self.message_cache_repo.cache_message(chat_id, message_doc)
@@ -87,15 +94,19 @@ class MessageService:
 
                     # Mark message as SENT for websocket payload so clients don't get stuck at SENDING
                     message_doc.message_status = MessageStatus.SENT
-                    # Deliver to recipient devices
+                    # Deliver only to recipient devices to avoid echoing back to sender
                     await manager.send_personal_message(message_doc, recipient_id)
-                    # Also deliver to sender's own devices for multi-device sync
-                    await manager.send_personal_message(message_doc, str(sender_id))
                 elif chat_dict["chat_type"] == ChatType.GROUP:
                     # broadcast to chat participants for group chat
                     # Mark message as SENT for websocket payload
                     message_doc.message_status = MessageStatus.SENT
-                    await manager.broadcast_message(message_doc, participants, chat_id)
+                    # Exclude sender to prevent echoing the just-sent message
+                    await manager.broadcast_message(
+                        message_doc,
+                        participants,
+                        chat_id,
+                        exclude_user_ids={str(sender_id)},
+                    )
 
                 # Change message status
                 await self.message_repo.update(
