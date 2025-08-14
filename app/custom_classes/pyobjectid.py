@@ -12,7 +12,7 @@ class PyObjectId(ObjectId):
 
     @classmethod
     def __get_pydantic_core_schema__(
-        cls, source_type: Any, handler: GetCoreSchemaHandler
+        cls, _source_type: Any, _handler: GetCoreSchemaHandler
     ) -> CoreSchema:
         return core_schema.json_or_python_schema(
             json_schema=core_schema.str_schema(),
@@ -21,7 +21,7 @@ class PyObjectId(ObjectId):
         )
 
     @classmethod
-    def validate(cls, value: Any, info: ValidationInfo) -> ObjectId:
+    def validate(cls, value: Any, _info: ValidationInfo) -> ObjectId:
         """Method to validate if the passing value is an ObjectId or not"""
         if isinstance(value, ObjectId):
             return value
