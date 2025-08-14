@@ -1,6 +1,9 @@
+"""WebSocket router providing real-time chat endpoint."""
+
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from fastapi.encoders import jsonable_encoder
+from redis.asyncio import Redis
 
 from app.dependencies import get_current_user_ws
 from app.schemas.websocket_schema import WebsocketReceivePayload
@@ -12,7 +15,6 @@ from app.repositories.message_repository import (
     MessageRepository,
 )
 from app.dependencies import get_redis_client
-from redis.asyncio import Redis
 
 logger = logging.getLogger(__name__)
 
@@ -20,14 +22,17 @@ router = APIRouter(prefix="/ws")
 
 
 def get_chat_repository() -> ChatRepository:
+    """Dependency provider for `ChatRepository`."""
     return ChatRepository()
 
 
 def get_message_repository() -> MessageRepository:
+    """Dependency provider for `MessageRepository`."""
     return MessageRepository()
 
 
 def get_message_cache(redis: Redis = Depends(get_redis_client)):
+    """Dependency provider for `MessageRedisRepository`."""
     return MessageRedisRepository(redis)
 
 
@@ -36,6 +41,7 @@ def get_message_service(
     message_repo: MessageRepository = Depends(get_message_repository),
     message_cache: MessageRedisRepository = Depends(get_message_cache),
 ):
+    """Construct a `MessageService` for websocket endpoint dependencies."""
     return MessageService(chat_repo, message_repo, message_cache)
 
 
@@ -46,6 +52,7 @@ async def websocket_endpoint(
     message_service: MessageService = Depends(get_message_service),
     redis: Redis = Depends(get_redis_client),
 ):
+    """WebSocket endpoint handling chat events: load history and new messages."""
     await manager.connect(websocket, user_id)
     try:
         while True:

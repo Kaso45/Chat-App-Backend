@@ -1,3 +1,5 @@
+"""Pydantic model for chat room entity (personal/group)."""
+
 from typing import Optional
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field, ConfigDict
@@ -8,6 +10,8 @@ from app.schemas.chat_schema import ChatCreate
 
 
 class ChatModel(BaseModel):
+    """Pydantic model representing a chat room (personal or group)."""
+
     id: Optional[PyObjectId] = Field(default=None, alias="_id")
     chat_type: ChatType
     participants: list[str]  # User IDs
@@ -30,4 +34,5 @@ class ChatModel(BaseModel):
 
     @classmethod
     def from_create(cls, chat: ChatCreate):
+        """Construct a `ChatModel` from an incoming create schema."""
         return cls(**chat.model_dump())

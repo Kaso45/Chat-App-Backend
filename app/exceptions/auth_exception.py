@@ -1,14 +1,17 @@
+"""Exception classes related to authentication and authorization."""
+
+
 class UserNotFoundError(Exception):
-    pass
+    """Raised when a requested user cannot be found."""
 
 
 class CredentialException(Exception):
-    pass
+    """Raised when credentials are missing or invalid."""
 
 
 class HeaderParsingError(Exception):
-    pass
+    """Raised for malformed or missing authentication headers/cookies."""
 
 
 class JWTDecodeError(Exception):
-    pass
+    """Raised when a JWT cannot be decoded or validated."""

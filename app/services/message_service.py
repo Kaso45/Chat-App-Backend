@@ -1,8 +1,11 @@
+"""Service module handling message operations, caching, and delivery."""
+
 import logging
 from datetime import datetime, timezone
 from typing import Optional, Tuple
 
 from fastapi import HTTPException
+from bson.errors import InvalidId
 from fastapi_pagination.cursor import CursorPage, CursorParams
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
@@ -26,6 +29,8 @@ logger = logging.getLogger(__name__)
 
 
 class MessageService:
+    """Service handling message creation, caching, delivery, and history retrieval."""
+
     def __init__(
         self,
         chat_repo: ChatRepository,
@@ -39,6 +44,21 @@ class MessageService:
     async def handle_new_message(
         self, message: MessageCreate, chat_id: str, sender_id: str
     ):
+        """Persist a new message, cache it, and deliver to recipients over websockets.
+
+        Validates that the sender participates in the chat, saves the message with
+        SENDING status, attempts to cache for fast reads, delivers to the intended
+        recipients (personal or group), and finally updates the message status to
+        SENT or FAILED.
+
+        Args:
+            message: Incoming message payload.
+            chat_id: Target chat identifier.
+            sender_id: Sender user identifier.
+
+        Raises:
+            HTTPException: 404 if chat not found, 400 if invalid input, 500 on error.
+        """
         # Validate and get chat room
         try:
             chat = await self.chat_repo.get_by_id(chat_id)
@@ -60,7 +80,7 @@ class MessageService:
             # Populate the generated id back into the model so cache uses a string id
             try:
                 message_doc.id = PyObjectId(result_id)
-            except Exception:
+            except InvalidId:
                 message_doc.id = None
             # Cache-aside: push to Redis immediately for fast reads
             try:
@@ -92,7 +112,8 @@ class MessageService:
                         logger.warning("No recipient found in personal chat")
                         return
 
-                    # Mark message as SENT for websocket payload so clients don't get stuck at SENDING
+                    # Mark message as SENT for websocket payload
+                    # so clients don't get stuck at SENDING
                     message_doc.message_status = MessageStatus.SENT
                     # Deliver only to recipient devices to avoid echoing back to sender
                     await manager.send_personal_message(message_doc, recipient_id)
@@ -176,6 +197,21 @@ class MessageService:
     async def _get_messages_from_db(
         self, chat_id: str, params: CursorParams
     ) -> CursorPage[MessageResponse]:
+        """Fetch messages from MongoDB and backfill Redis cache.
+
+        Applies cursor-based pagination using a timestamp cursor (epoch ms). Also
+        backfills the Redis cache with the fetched page to optimize subsequent reads.
+
+        Args:
+            chat_id: Chat identifier.
+            params: Cursor pagination parameters (size and cursor).
+
+        Returns:
+            CursorPage of MessageResponse with a next cursor when applicable.
+
+        Raises:
+            HTTPException: 400 if the cursor format is invalid.
+        """
         # Build query and apply cursor filter
         limit = params.size + 1
         lt_ts: Optional[datetime] = None
@@ -228,12 +264,31 @@ class MessageService:
 
 
 class MessageCacheService:
+    """Utilities for reading message history from Redis cache."""
+
     def __init__(self, redis: Redis):
+        """Initialize with a Redis client instance.
+
+        Args:
+            redis: Async Redis client used for cache operations.
+        """
         self.redis = redis
 
     async def get_messages_cached(
         self, chat_id: str, cursor: Optional[str], size: int
     ) -> Tuple[list[MessageResponse], Optional[str]]:
+        """Read a page of messages from Redis sorted set with newest-first ordering.
+
+        Args:
+            chat_id: Chat identifier whose messages to read.
+            cursor: Epoch milliseconds string indicating exclusive upper bound. If
+                omitted, reads from +inf (newest).
+            size: Page size to return.
+
+        Returns:
+            A tuple of (items, next_cursor) where items is a list of MessageResponse
+            and next_cursor is the epoch ms string for the next page or None.
+        """
         key = redis_chat_messages_key(chat_id)
         prefetch_factor = 2
         # Use reverse range by score to fetch newest first.

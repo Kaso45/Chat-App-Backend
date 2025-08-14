@@ -1,4 +1,4 @@
-"""Module providing Pydantic model for user"""
+"""Pydantic model for user entity."""
 
 from typing import Optional
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
@@ -8,6 +8,7 @@ from app.custom_classes.pyobjectid import PyObjectId
 
 class UserModel(BaseModel):
     """Pydantic model for user"""
+
     id: Optional[PyObjectId] = Field(default=None, alias="_id")
     email: EmailStr
     username: str

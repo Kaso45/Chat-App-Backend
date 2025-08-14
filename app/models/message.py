@@ -1,3 +1,5 @@
+"""Pydantic model for chat message entity."""
+
 from typing import Optional
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field, ConfigDict
@@ -8,9 +10,7 @@ from app.schemas.message_schema import MessageCreate
 
 
 class MessageModel(BaseModel):
-    """
-    Pydantic model for message
-    """
+    """Pydantic model representing a chat message."""
 
     id: Optional[PyObjectId] = Field(default=None, alias="_id")
     chat_id: Optional[PyObjectId] = None
@@ -35,6 +35,7 @@ class MessageModel(BaseModel):
 
     @classmethod
     def from_create(cls, message: MessageCreate, sender_id: str, chat_id: str):
+        """Construct a `MessageModel` from create schema and path context."""
         data = message.model_dump()
         data.pop("sender_id", None)
         return cls(

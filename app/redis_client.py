@@ -1,4 +1,4 @@
-"""Redis config"""
+"""Redis client and key helpers for chat app caching."""
 
 from redis.asyncio import Redis, ConnectionPool
 

@@ -13,7 +13,7 @@ from app.repositories.user_repository import UserRepository
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_: FastAPI):
     """
     Startup event
     """

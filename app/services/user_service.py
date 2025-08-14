@@ -37,6 +37,18 @@ class UserService:
         self.user_repo = user_repo
 
     async def login_user(self, request: UserLoginRequest, response: JSONResponse):
+        """Authenticate user and set HTTP-only access token cookie.
+
+        Args:
+            request: Login payload containing email and password.
+            response: Response object to attach cookie to.
+
+        Returns:
+            JSONResponse containing a success message with cookie set.
+
+        Raises:
+            HTTPException: 401 for invalid credentials; 500 on server error.
+        """
         try:
             user = await self.user_repo.get_by_email(request.email)
         except UserNotFoundError:
@@ -116,6 +128,18 @@ class UserService:
         request: ForgotPasswordRequest,
         bg: BackgroundTasks,
     ):
+        """Initiate password reset by emailing a reset link.
+
+        Args:
+            request: Forgot password payload with email.
+            bg: Background task manager to send email asynchronously.
+
+        Returns:
+            Dict message acknowledging email dispatch regardless of user existence.
+
+        Raises:
+            HTTPException: 500 on server error.
+        """
         try:
             user = await self.user_repo.get_by_email(request.email)
         except UserNotFoundError:

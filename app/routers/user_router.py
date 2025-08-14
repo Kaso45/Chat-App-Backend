@@ -1,4 +1,4 @@
-"""Module providing functions for authentication endpoint"""
+"""HTTP routes for authentication, password reset, and user listing."""
 
 from fastapi import APIRouter, status, BackgroundTasks, Query, Depends, Response
 from fastapi.responses import JSONResponse
@@ -20,12 +20,14 @@ router = APIRouter(prefix="/api/auth", tags=["Users"])
 
 
 def get_user_repository() -> UserRepository:
+    """Dependency provider for `UserRepository`."""
     return UserRepository()
 
 
 def get_user_service(
     user_repo: UserRepository = Depends(get_user_repository),
 ) -> UserService:
+    """Construct a `UserService` with a repository dependency."""
     return UserService(user_repo)
 
 
@@ -41,6 +43,7 @@ async def login(
     response: JSONResponse,
     user_service: UserService = Depends(get_user_service),
 ):
+    """Authenticate user and set access token cookie."""
     return await user_service.login_user(request=request, response=response)
 
 
@@ -54,6 +57,7 @@ async def login(
 async def register(
     request: UserRegisterRequest, user_service: UserService = Depends(get_user_service)
 ):
+    """Register a new user account."""
     return await user_service.register_user(request)
 
 
@@ -139,6 +143,7 @@ async def logout(
     status_code=status.HTTP_200_OK,
 )
 async def get_username(current_user: UserModel = Depends(get_current_user)):
+    """Return the current user's username (auth required)."""
     return {"username": current_user.username}
 
 

@@ -2,6 +2,7 @@
 
 import logging
 from typing import Optional, Iterable
+from bson.errors import InvalidId
 from pydantic import EmailStr
 from motor.motor_asyncio import AsyncIOMotorCollection
 
@@ -22,6 +23,7 @@ class UserRepository:
         self.collection = collection
 
     async def ensure_indexes(self):
+        """Create necessary indexes (email uniqueness)."""
         try:
             await self.collection.create_index("email", unique=True)
         except DuplicateKeyError:
@@ -31,6 +33,7 @@ class UserRepository:
             raise DatabaseOperationError from e
 
     async def get_by_email(self, email: EmailStr):
+        """Fetch a user by email or raise `UserNotFoundError`."""
         user = await self.collection.find_one({"email": email})
         if not user:
             raise UserNotFoundError("User not found")
@@ -39,12 +42,14 @@ class UserRepository:
     # Removed duplicate early definition of get_usernames_by_ids
 
     async def exist_email(self, email: EmailStr) -> bool:
+        """Return True if a user with the given email exists."""
         user = await self.collection.find_one({"email": email})
         if user:
             return True
         return False
 
     async def get_by_id(self, user_id: str):
+        """Fetch a user by id and return `UserModel` or None if not found."""
         try:
             object_user_id = PyObjectId(user_id)
             user = await self.collection.find_one({"_id": object_user_id})
@@ -73,6 +78,7 @@ class UserRepository:
             raise DatabaseOperationError(f"Failed to fetch usernames: {str(e)}") from e
 
     async def create(self, data: dict):
+        """Insert a new user and return its inserted id."""
         try:
             result = await self.collection.insert_one(data)
             return str(result.inserted_id)
@@ -108,6 +114,7 @@ class UserRepository:
             raise DatabaseOperationError(f"Failed to update user: {str(e)}") from e
 
     async def update_password(self, email: EmailStr, password: str):
+        """Update a user's password by email and return the update result."""
         result = await self.collection.update_one(
             {"email": email}, {"$set": {"password": password}}
         )
@@ -134,7 +141,7 @@ class UserRepository:
             if exclude_user_id:
                 try:
                     query["_id"] = {"$ne": PyObjectId(exclude_user_id)}
-                except Exception as e:  # pragma: no cover - defensive
+                except InvalidId as e:  # pragma: no cover - defensive
                     # Ignore invalid ObjectId string silently to avoid blocking search
                     logger.warning(
                         "Invalid exclude_user_id %s: %s", exclude_user_id, str(e)

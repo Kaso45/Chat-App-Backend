@@ -1,4 +1,4 @@
-"""Module providing class to access for environment variables"""
+"""Configuration settings loaded from environment variables (.env)."""
 
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
