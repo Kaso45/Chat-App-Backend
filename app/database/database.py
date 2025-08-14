@@ -1,4 +1,4 @@
-"""Module for MongoDB connection"""
+"""MongoDB client, database, and collections, plus a ping helper."""
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.config.config import settings
@@ -14,6 +14,7 @@ message_collection = db.get_collection("messages")
 
 # Send a ping to confirm a successful connection
 async def ping_mongo():
+    """Ping the MongoDB server to verify connectivity."""
     try:
         await client.admin.command("ping")
         print("Pinged your deployment. You successfully connected to MongoDB!")

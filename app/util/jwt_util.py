@@ -1,4 +1,4 @@
-"""Module providing function to manage JWT token"""
+"""Utilities for creating and verifying JWTs for access and password reset."""
 
 import logging
 from datetime import timedelta, datetime, timezone
@@ -72,6 +72,7 @@ def verify_reset_password_token(token: str) -> str:
 
 
 def verify_token(token: str) -> str:
+    """Verify access token and return subject (user id) on success."""
     try:
         payload = jwt.decode(token, ACCESS_TOKEN_SECRET, algorithms=ALGORITHM)
         subject = payload.get("sub")

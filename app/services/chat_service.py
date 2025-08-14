@@ -59,6 +59,8 @@ def resolve_chat_display_name(
 
 
 class ChatService:
+    """Service for creating chats and listing user's chat rooms with caching."""
+
     def __init__(self, chat_repo: ChatRepository, chat_cache: ChatRedisRepository):
         self.chat_repo = chat_repo
         self.chat_cache = chat_cache
@@ -69,6 +71,21 @@ class ChatService:
         user_id: str,
         data: PersonalChatCreate,
     ):
+        """Create or reuse a personal chat between the current user and another user.
+
+        Ensures exactly two participants including the creator, checks for an
+        existing personal chat, caches the room, and broadcasts its availability.
+
+        Args:
+            user_id: The creator/current user's id.
+            data: Payload containing the two participants.
+
+        Returns:
+            A dict with a message and the `chat_id`.
+
+        Raises:
+            HTTPException: 400 for invalid inputs; 500 on server error.
+        """
         try:
             # Ensure exactly two participants and current user included
             participants = list(data.participants or [])
@@ -117,6 +134,21 @@ class ChatService:
             ) from e
 
     async def create_group_chat(self, data: GroupChatCreate, user_id: str):
+        """Create a new group chat and broadcast to participants.
+
+        Ensures the creator is included and an admin, deduplicates participants,
+        persists, caches, and broadcasts the new chat room to members.
+
+        Args:
+            data: Group chat creation payload.
+            user_id: The creator/current user's id.
+
+        Returns:
+            A dict with a message and the `chat_id`.
+
+        Raises:
+            HTTPException: 400 for invalid inputs; 500 on server error.
+        """
         try:
             # Normalize and validate participants
             raw_participants = list(data.participants or [])
@@ -176,16 +208,18 @@ class ChatService:
         redis: Redis,
         params: CursorParams,
     ) -> CursorPage[ChatRoomResponse]:
-        """
-        Get user chat rooms with Redis caching and MongoDB fallback
+        """List the current user's chat rooms with Redis-first strategy.
+
+        Attempts to serve from Redis cache when marked complete, with DB fallback
+        and backfill. Uses cursor pagination ordered by last_updated desc.
 
         Args:
-            current_user: Current user model
-            redis: Redis client
-            params: Pagination parameters
+            current_user: Current user model.
+            redis: Redis client instance.
+            params: Cursor pagination parameters.
 
         Returns:
-            CursorPage with chat rooms
+            CursorPage of ChatRoomResponse.
         """
         user_repo = UserRepository()
         cache_service = ChatCacheService(redis, user_repo)
@@ -213,9 +247,7 @@ class ChatService:
     async def _get_user_chat_rooms_from_db(
         self, user: UserModel, params: CursorParams
     ) -> CursorPage[ChatRoomResponse]:
-        """
-        Get user chat rooms from MongoDB with proper cursor pagination
-        """
+        """Fetch user's chat rooms from MongoDB and backfill Redis cache."""
         user_id = str(user.id)
 
         # Build proper query with user participation filter
@@ -294,7 +326,7 @@ class ChatService:
 
 
 class ChatCacheService:
-    """Handles Redis caching operations for chat rooms"""
+    """Handles Redis caching operations for chat rooms."""
 
     def __init__(self, redis: Redis, user_repo: UserRepository):
         self.redis = redis
@@ -303,16 +335,17 @@ class ChatCacheService:
     async def get_user_chat_rooms_cached(
         self, current_user: UserModel, cursor: Optional[str], size: int
     ) -> Tuple[list[ChatRoomResponse], Optional[str]]:
-        """
-        Get user chat rooms from Redis cache with proper pagination using zrevrangebyscore
+        """Read a page of chat rooms from Redis cache using zrevrangebyscore.
+
+        Accepts ISO8601 or epoch milliseconds cursor and returns newest-first.
 
         Args:
-            user_id: User ID
-            cursor: Pagination cursor (timestamp as string)
-            size: Number of items to return
+            current_user: Current user context (for id resolution).
+            cursor: Pagination cursor (ISO string or epoch ms).
+            size: Number of items to return.
 
         Returns:
-            Tuple of (chat_rooms, next_cursor)
+            Tuple of (chat_rooms, next_cursor ISO string).
         """
         user_id = str(current_user.id)
 
@@ -320,7 +353,8 @@ class ChatCacheService:
         prefetch_factor = 2
 
         try:
-            # Normalize cursor (accept ISO8601 or epoch ms string); convert to ms for score filtering
+            # Normalize cursor (accept ISO8601 or epoch ms)
+            # Convert to ms for score filtering
             max_score: str
             if not cursor:
                 max_score = "+inf"

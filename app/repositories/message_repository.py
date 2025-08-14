@@ -1,3 +1,5 @@
+"""Repository module for message persistence and caching helpers."""
+
 import logging
 from datetime import datetime
 from typing import Optional
@@ -16,10 +18,16 @@ logger = logging.getLogger(__name__)
 
 
 class MessageRepository:
+    """Repository for message persistence and queries against MongoDB."""
+
     def __init__(self, collection: AsyncIOMotorCollection = message_collection):
         self.collection = collection
 
     async def get_by_id(self, message_id: str):
+        """Fetch a message by id and return a `MessageModel`.
+
+        Raises `MessageNotFoundError` when not found.
+        """
         try:
             obj_id = PyObjectId(message_id)
             message = await self.collection.find_one({"_id": obj_id})
@@ -35,6 +43,7 @@ class MessageRepository:
             raise
 
     async def create(self, message: MessageModel):
+        """Insert a new message document and return its inserted id as string."""
         try:
             data = message.model_dump(by_alias=True, exclude={"id"})
             result = await self.collection.insert_one(data)
@@ -43,6 +52,7 @@ class MessageRepository:
             raise DatabaseOperationError(f"Failed to create message: {str(e)}") from e
 
     async def update(self, message_id: str, data: dict) -> bool:
+        """Update fields of a message by id and return True if modified."""
         try:
             obj_id = PyObjectId(message_id)
             result = await self.collection.update_one({"_id": obj_id}, {"$set": data})
@@ -51,6 +61,7 @@ class MessageRepository:
             raise DatabaseOperationError(f"Failed to update message: {str(e)}") from e
 
     async def remove(self, message_id: str):
+        """Delete a message by id."""
         try:
             obj_id = PyObjectId(message_id)
             await self.collection.delete_one({"_id": obj_id})
@@ -60,6 +71,7 @@ class MessageRepository:
     def get_messages_cursor(
         self, chat_id: str, limit: int, lt_timestamp: Optional[datetime] = None
     ):
+        """Return a Motor cursor for newest-first messages by chat with optional lt filter."""
         query: dict = {"chat_id": PyObjectId(chat_id)}
         if lt_timestamp is not None:
             query["timestamp"] = {"$lt": lt_timestamp}
@@ -68,10 +80,18 @@ class MessageRepository:
 
 
 class MessageRedisRepository:
+    """Repository for caching messages in Redis (sorted set + hash per message)."""
+
     def __init__(self, redis: Redis) -> None:
+        """Initialize with an async Redis client."""
         self.redis = redis
 
     async def cache_message(self, chat_id: str, message: MessageModel):
+        """Cache a message under the chat's sorted set and message hash.
+
+        Uses message timestamp as score (epoch ms) and stores normalized fields
+        in a hash for quick retrieval.
+        """
         key = redis_chat_messages_key(chat_id)
         # Ensure message_id is a string for Redis keys. Support PyObjectId or str.
         mid = message.id

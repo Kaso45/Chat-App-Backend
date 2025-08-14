@@ -1,3 +1,5 @@
+"""HTTP routes for chat creation and listing with DI wiring."""
+
 import logging
 from fastapi import APIRouter, Depends
 from fastapi_pagination.cursor import CursorParams
@@ -15,10 +17,12 @@ router = APIRouter(prefix="/api/chat", tags=["Chats"])
 
 
 def get_chat_repository():
+    """Dependency provider for `ChatRepository`."""
     return ChatRepository()
 
 
 def get_chat_cache(redis: Redis = Depends(get_redis_client)):
+    """Dependency provider for `ChatRedisRepository`."""
     return ChatRedisRepository(redis)
 
 
@@ -26,6 +30,7 @@ def get_chat_service(
     chat_repo: ChatRepository = Depends(get_chat_repository),
     chat_cache: ChatRedisRepository = Depends(get_chat_cache),
 ):
+    """Construct a `ChatService` with repository and cache dependencies."""
     return ChatService(chat_repo, chat_cache)
 
 
@@ -35,6 +40,7 @@ async def create_personal_chat(
     current_user: UserModel = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ):
+    """Create or reuse a personal chat room between two users."""
     user_id = str(current_user.id)
     result = await chat_service.create_personal_chat(
         user_id=user_id, data=request_schema
@@ -48,6 +54,7 @@ async def create_group_chat(
     current_user: UserModel = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ):
+    """Create a group chat room and notify participants."""
     user_id = str(current_user.id)
     result = await chat_service.create_group_chat(user_id=user_id, data=request_schema)
     return result
@@ -60,5 +67,5 @@ async def get_chat_list(
     redis: Redis = Depends(get_redis_client),
     params: CursorParams = Depends(),
 ):
-    """Get user's chat rooms with pagination"""
+    """Get user's chat rooms with pagination."""
     return await chat_service.get_user_chat_rooms(current_user, redis, params)

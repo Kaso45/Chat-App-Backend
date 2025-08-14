@@ -1,2 +1,5 @@
+"""Exception wrapper for Redis-related failures."""
+
+
 class RedisError(Exception):
-    pass
+    """Raised for Redis client and operation-level errors."""

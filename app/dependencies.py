@@ -1,4 +1,4 @@
-"""Module contains dependency injection functions"""
+"""FastAPI dependency providers for auth, users, and Redis access."""
 
 from fastapi import (
     Depends,
@@ -29,6 +29,14 @@ def get_user_repository() -> UserRepository:
 
 
 async def get_current_user_ws(websocket: WebSocket) -> str:
+    """Resolve current user id from WebSocket cookies (access_token).
+
+    Returns:
+        The user id string extracted from a verified token.
+
+    Raises:
+        WebSocketDisconnect: When missing/invalid token or on internal errors.
+    """
     try:
         token = websocket.cookies.get("access_token")
         if not token:
@@ -51,6 +59,7 @@ async def get_current_user_ws(websocket: WebSocket) -> str:
 async def get_current_user(
     request: Request, user_repo: UserRepository = Depends(get_user_repository)
 ):
+    """Dependency to return the authenticated `UserModel` from HTTP cookies."""
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(
@@ -77,4 +86,5 @@ async def get_current_user(
 
 
 def get_redis_client():
+    """Provide a shared Redis client instance."""
     return r

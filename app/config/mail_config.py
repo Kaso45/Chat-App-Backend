@@ -1,3 +1,5 @@
+"""Mail configuration using FastMail and project templates."""
+
 from pathlib import Path
 from fastapi_mail import ConnectionConfig
 from pydantic import SecretStr

@@ -1,3 +1,5 @@
+"""Repository module for chat persistence and Redis caching."""
+
 import logging
 from typing import Optional
 from motor.motor_asyncio import AsyncIOMotorCollection
@@ -18,10 +20,13 @@ logger = logging.getLogger(__name__)
 
 
 class ChatRepository:
+    """Repository for chat persistence, queries, and cache-related helpers."""
+
     def __init__(self, collection: AsyncIOMotorCollection = chat_collection):
         self.collection = collection
 
     async def ensure_indexes(self):
+        """Ensure compound indexes used by chat listing queries exist."""
         try:
             await self.collection.create_index(
                 [("last_updated", -1), ("participants", 1)]
@@ -33,6 +38,7 @@ class ChatRepository:
             raise DatabaseOperationError from e
 
     async def get_by_id(self, chat_id: str) -> ChatModel:
+        """Fetch a chat by id and return a `ChatModel`."""
         try:
             obj_id = PyObjectId(chat_id)
             result = await self.collection.find_one({"_id": obj_id})
@@ -44,6 +50,7 @@ class ChatRepository:
             raise DatabaseOperationError(f"Failed to fetch for chat: {str(e)}") from e
 
     async def create(self, chat_doc: ChatModel):
+        """Insert a new chat and return its inserted id as string."""
         try:
             data = chat_doc.model_dump(by_alias=True, exclude={"id"})
             result = await self.collection.insert_one(data)
@@ -54,6 +61,7 @@ class ChatRepository:
     def get_chats_cursor(
         self, query: dict[str, dict], sort: dict[str, int], limit: int
     ):
+        """Return a Motor cursor for chats using provided filter, sort and limit."""
         cursor = self.collection.find(query).sort(sort).limit(limit)
         return cursor
 
@@ -83,12 +91,20 @@ class ChatRepository:
 
 
 class ChatRedisRepository:
+    """Repository for chat room caching in Redis."""
+
     def __init__(self, redis: Redis):
+        """Initialize with an async Redis client."""
         self.redis = redis
 
     async def cache_chat_room(
         self, user_id: str, chat_model: ChatModel, chat_id: Optional[str] = None
     ):
+        """Cache a chat room entry for a user in Redis.
+
+        Stores the chat in a per-user sorted set keyed by last_updated and a
+        corresponding hash for metadata. The completeness flag is not set here.
+        """
         key = redis_user_chat_rooms_key(user_id)
         effective_chat_id: Optional[str] = chat_id or (
             str(chat_model.id) if chat_model.id is not None else None

@@ -1,10 +1,13 @@
+"""Generic database exception types for repository layer."""
+
+
 class DatabaseOperationError(Exception):
-    pass
+    """Generic database operation error wrapper for infrastructure layer."""
 
 
 class DuplicateKeyError(Exception):
-    pass
+    """Raised when attempting to insert a duplicate unique key."""
 
 
 class DatabaseConnectionError(Exception):
-    pass
+    """Raised when a database connection cannot be established or maintained."""

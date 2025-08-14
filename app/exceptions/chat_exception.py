@@ -1,5 +1,9 @@
+"""Exception classes related to chat database operations."""
+
+
 class ChatDatabaseError(Exception):
-    pass
+    """Base class for chat database-related errors."""
+
 
 class ChatNotFoundError(ChatDatabaseError):
-    pass
+    """Raised when a chat room cannot be located in the database."""

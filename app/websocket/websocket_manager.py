@@ -1,3 +1,5 @@
+"""Manager for WebSocket connections, sends, and broadcasts."""
+
 import logging
 import asyncio
 from typing import Optional, Set
@@ -10,6 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 class WebsocketManager:
+    """Book-keeping and send/broadcast helpers for WebSocket connections."""
+
     def __init__(self):
         self.user_connections: dict[str, set[WebSocket]] = (
             {}
@@ -17,12 +21,14 @@ class WebsocketManager:
         self._lock = asyncio.Lock()  # Ensure thread-safety
 
     async def connect(self, websocket: WebSocket, user_id: str):
+        """Accept and register a websocket connection for a user."""
         await websocket.accept()
         async with self._lock:
             self.user_connections.setdefault(user_id, set()).add(websocket)
         logger.info("User %s connected via websocket", user_id)
 
     async def disconnect(self, websocket: WebSocket, user_id: str):
+        """Unregister a websocket connection for a user."""
         # remove websocket from user connections
         async with self._lock:
             conns = self.user_connections.get(user_id)
