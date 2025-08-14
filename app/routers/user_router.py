@@ -144,7 +144,7 @@ async def logout(
 )
 async def get_username(current_user: UserModel = Depends(get_current_user)):
     """Return the current user's username (auth required)."""
-    return {"username": current_user.username}
+    return {"user_id": current_user.id, "username": current_user.username}
 
 
 @router.get(
