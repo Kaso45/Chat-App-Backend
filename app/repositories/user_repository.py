@@ -77,6 +77,43 @@ class UserRepository:
         except Exception as e:
             raise DatabaseOperationError(f"Failed to fetch usernames: {str(e)}") from e
 
+    async def get_basic_profiles_by_ids(self, user_ids: Iterable[str]) -> list[dict]:
+        """Fetch basic profiles (id, username, email) for a list of user IDs in one query.
+
+        Preserves the input order and skips IDs not found.
+        """
+        try:
+            # Preserve order while deduplicating
+            ordered_unique_ids: list[str] = []
+            seen: set[str] = set()
+            for uid in user_ids:
+                if uid and uid not in seen:
+                    seen.add(uid)
+                    ordered_unique_ids.append(uid)
+
+            if not ordered_unique_ids:
+                return []
+
+            object_ids = [PyObjectId(uid) for uid in ordered_unique_ids]
+            projection = {"username": 1, "email": 1}
+            cursor = self.collection.find({"_id": {"$in": object_ids}}, projection)
+            docs = await cursor.to_list(length=None)
+
+            by_id = {str(doc.get("_id")): doc for doc in docs}
+            return [
+                {
+                    "id": uid,
+                    "username": by_id[uid].get("username"),
+                    "email": by_id[uid].get("email"),
+                }
+                for uid in ordered_unique_ids
+                if uid in by_id
+            ]
+        except Exception as e:
+            raise DatabaseOperationError(
+                f"Failed to fetch user profiles by IDs: {str(e)}"
+            ) from e
+
     async def create(self, data: dict):
         """Insert a new user and return its inserted id."""
         try:
