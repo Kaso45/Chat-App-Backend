@@ -18,6 +18,7 @@ from app.schemas.chat_schema import (
     GroupChatCreate,
     PersonalChatCreate,
 )
+from app.exceptions.chat_exception import ChatNotFoundError
 from app.redis_client import (
     redis_chat_data_key,
     redis_user_chat_rooms_key,
@@ -323,6 +324,20 @@ class ChatService:
             next_cursor = chat_docs[params.size - 1]["last_updated"].isoformat()
 
         return CursorPage.create(items=chats, params=params, next_=next_cursor)
+
+    async def get_chat_members(self, chat_id: str):
+        """Get chat members."""
+        # try redis cache first
+        try:
+            members = await self.chat_cache.get_chat_members_cache(chat_id)
+            return members
+        except (RedisError, ChatNotFoundError) as e:
+            logger.warning(
+                "Redis cache miss/error for chat %s: %s", chat_id, str(e)
+            )
+
+        # Fallback to MongoDB
+        return await self.chat_repo.get_chat_members(chat_id)
 
 
 class ChatCacheService:

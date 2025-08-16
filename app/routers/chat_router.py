@@ -1,7 +1,7 @@
 """HTTP routes for chat creation and listing with DI wiring."""
 
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path
 from fastapi_pagination.cursor import CursorParams
 from redis.asyncio import Redis
 
@@ -69,3 +69,11 @@ async def get_chat_list(
 ):
     """Get user's chat rooms with pagination."""
     return await chat_service.get_user_chat_rooms(current_user, redis, params)
+
+@router.get("/{chat_id}/members")
+async def get_chat_members(
+    chat_service: ChatService = Depends(get_chat_service),
+    chat_id: str = Path(..., description="Chat ID"),
+):
+    """Get chat members."""
+    return await chat_service.get_chat_members(chat_id)
