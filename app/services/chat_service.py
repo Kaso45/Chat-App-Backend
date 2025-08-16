@@ -326,18 +326,26 @@ class ChatService:
         return CursorPage.create(items=chats, params=params, next_=next_cursor)
 
     async def get_chat_members(self, chat_id: str):
-        """Get chat members."""
-        # try redis cache first
+        """Get chat members with profile fields
+
+        Returns a list of dicts: {"id", "username", "email"}
+        """
+        # 1) Resolve participant IDs (Redis first, DB fallback)
+        participants: list[str]
         try:
-            members = await self.chat_cache.get_chat_members_cache(chat_id)
-            return members
+            participants = await self.chat_cache.get_chat_members_cache(chat_id)
         except (RedisError, ChatNotFoundError) as e:
             logger.warning(
                 "Redis cache miss/error for chat %s: %s", chat_id, str(e)
             )
+            participants = await self.chat_repo.get_chat_members(chat_id)
 
-        # Fallback to MongoDB
-        return await self.chat_repo.get_chat_members(chat_id)
+        if not participants:
+            return []
+
+        # 2) Batch fetch basic profiles in a single query
+        profiles = await self.user_repo.get_basic_profiles_by_ids(participants)
+        return profiles
 
 
 class ChatCacheService:
