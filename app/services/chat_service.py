@@ -347,6 +347,58 @@ class ChatService:
         profiles = await self.user_repo.get_basic_profiles_by_ids(participants)
         return profiles
 
+    async def delete_chat(self, chat_id: str, current_user: UserModel):
+        """Delete a chat room: authorize, delete from DB, evict cache, broadcast.
+
+        - Personal chat: any participant may delete.
+        - Group chat: only admins may delete.
+        """
+        # 1) Fetch chat document for type/admins/participants
+        try:
+            chat_doc = await self.chat_repo.get_by_id(chat_id)
+        except ChatNotFoundError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found"
+            )
+
+        participants = list(chat_doc.participants or [])
+        requester_id = str(current_user.id)
+
+        # 2) Authorization based on chat type
+        if chat_doc.chat_type == ChatType.GROUP:
+            admins = set(chat_doc.admins or [])
+            if requester_id not in admins:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only a group admin can delete this chat",
+                )
+        else:
+            # For personal (and any non-group), require membership
+            if requester_id not in participants:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User is not a participant of this chat",
+                )
+
+        # 3) Delete from MongoDB
+        deleted = await self.chat_repo.delete_chat(chat_id)
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chat not found or already deleted",
+            )
+
+        # 4) Evict from Redis (best-effort)
+        try:
+            await self.chat_cache.remove_chat_room(chat_id, participants)
+        except RedisError as e:
+            logger.warning("Failed to evict chat %s from Redis: %s", chat_id, str(e))
+
+        # 5) Broadcast deletion to participants
+        await manager.broadcast_chat_deleted(chat_id, participants)
+
+        return {"message": "Chat deleted", "chat_id": chat_id}
+
 
 class ChatCacheService:
     """Handles Redis caching operations for chat rooms."""

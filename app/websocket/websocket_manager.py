@@ -83,6 +83,23 @@ class WebsocketManager:
                     except WebSocketException as e:
                         logger.error("Error broadcasting to %s: %s", user_id, e)
 
+    async def broadcast_chat_deleted(self, chat_id: str, participants: list[str]):
+        """Broadcast a chat deletion event to all participants."""
+        data = {
+            "type": "chat_deleted",
+            "chat_id": chat_id,
+        }
+
+        async with self._lock:
+            for user_id in participants or []:
+                for ws in self.user_connections.get(user_id, set()):
+                    try:
+                        await ws.send_json(data)
+                    except WebSocketException as e:
+                        logger.error(
+                            "Error broadcasting chat deletion to %s: %s", user_id, e
+                        )
+
     async def broadcast_new_chat_room(
         self, chat_room: ChatRoomResponse, participants: list[str]
     ):
