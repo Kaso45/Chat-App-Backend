@@ -146,7 +146,11 @@ async def get_current_user_information(
     current_user: UserModel = Depends(get_current_user),
 ):
     """Return the current user's information (auth required)."""
-    return {"user_id": str(current_user.id), "username": current_user.username}
+    return {
+        "user_id": str(current_user.id),
+        "username": current_user.username,
+        "email": current_user.email,
+    }
 
 
 @router.get(
