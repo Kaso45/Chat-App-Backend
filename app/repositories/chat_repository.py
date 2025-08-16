@@ -107,6 +107,28 @@ class ChatRepository:
                 f"Failed to get chat members: {str(e)}"
             ) from e
 
+    async def is_user_participant(self, chat_id: str, user_id: str) -> bool:
+        """Check if a user is a participant of the given chat."""
+        try:
+            obj_id = PyObjectId(chat_id)
+            doc = await self.collection.find_one(
+                {"_id": obj_id, "participants": {"$in": [user_id]}}, {"_id": 1}
+            )
+            return doc is not None
+        except Exception as e:
+            raise DatabaseOperationError(
+                f"Failed to verify user participation: {str(e)}"
+            ) from e
+
+    async def delete_chat(self, chat_id: str) -> bool:
+        """Delete a chat document by id. Returns True if deleted."""
+        try:
+            obj_id = PyObjectId(chat_id)
+            result = await self.collection.delete_one({"_id": obj_id})
+            return result.deleted_count == 1
+        except Exception as e:
+            raise DatabaseOperationError(f"Failed to delete chat: {str(e)}") from e
+
 
 class ChatRedisRepository:
     """Repository for chat room caching in Redis."""
@@ -169,3 +191,17 @@ class ChatRedisRepository:
             # Backward compatibility if stored as a list
             participants = list(raw_parts or [])
         return participants
+
+    async def remove_chat_room(self, chat_id: str, participants: list[str]):
+        """Remove a chat room from Redis: delete chat hash and zset entries for users."""
+        chat_hash_key = redis_chat_data_key(chat_id)
+        pipe = self.redis.pipeline()
+        # Remove chat metadata hash
+        pipe.delete(chat_hash_key)
+        # Remove chat id from each participant's sorted set
+        for uid in participants or []:
+            if not uid:
+                continue
+            user_key = redis_user_chat_rooms_key(uid)
+            pipe.zrem(user_key, chat_id)
+        await pipe.execute()

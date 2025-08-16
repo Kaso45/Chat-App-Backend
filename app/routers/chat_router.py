@@ -77,3 +77,13 @@ async def get_chat_members(
 ):
     """Get chat members."""
     return await chat_service.get_chat_members(chat_id)
+
+
+@router.delete("/{chat_id}")
+async def delete_chat(
+    chat_service: ChatService = Depends(get_chat_service),
+    chat_id: str = Path(..., description="Chat ID"),
+    current_user: UserModel = Depends(get_current_user),
+):
+    """Delete a chat room (DB + Redis eviction) and broadcast real-time event."""
+    return await chat_service.delete_chat(chat_id, current_user)
