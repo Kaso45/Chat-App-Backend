@@ -89,6 +89,24 @@ class ChatRepository:
                 f"Failed to find existing personal chat: {str(e)}"
             ) from e
 
+    async def get_chat_members(self, chat_id: str):
+        """Get chat members."""
+        try:
+            obj_id = PyObjectId(chat_id)
+            # Only fetch participants to reduce payload and avoid extra parsing
+            doc = await self.collection.find_one({"_id": obj_id}, {"participants": 1})
+            if not doc:
+                raise ChatNotFoundError(f"Chat with id {chat_id} not found")
+
+            participants = doc.get("participants") or []
+            if not isinstance(participants, list):
+                participants = list(participants) if participants else []
+            return participants
+        except Exception as e:
+            raise DatabaseOperationError(
+                f"Failed to get chat members: {str(e)}"
+            ) from e
+
 
 class ChatRedisRepository:
     """Repository for chat room caching in Redis."""
@@ -136,3 +154,18 @@ class ChatRedisRepository:
         """Mark user's chat rooms cache as complete/backfilled."""
         key = redis_user_chat_rooms_complete_key(user_id)
         await self.redis.set(key, "1", ex=86400)
+
+    async def get_chat_members_cache(self, chat_id: str):
+        """Get chat members from Redis cache."""
+        chat_hash_key = redis_chat_data_key(chat_id)
+        chat_doc = await self.redis.hgetall(chat_hash_key)
+        if not chat_doc:
+            raise ChatNotFoundError(f"Chat with id {chat_id} not found")
+        # Participants are stored as CSV string in Redis cache (see cache_chat_room)
+        raw_parts = chat_doc.get("participants", "")
+        if isinstance(raw_parts, str):
+            participants = [p for p in raw_parts.split(",") if p]
+        else:
+            # Backward compatibility if stored as a list
+            participants = list(raw_parts or [])
+        return participants
