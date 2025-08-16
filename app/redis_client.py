@@ -54,6 +54,15 @@ def redis_user_chat_rooms_complete_key(user_id: str) -> str:
     return f"user_chats:{user_id}:complete"
 
 
+def redis_chat_messages_complete_count_key(chat_id: str) -> str:
+    """
+    Redis key storing the number of cached messages for a chat after a DB backfill
+    on initial load (no cursor). Used to distinguish between a truly small chat
+    and an incomplete cache due to expirations.
+    """
+    return f"chat_messages:{chat_id}:complete_count"
+
+
 async def close_redis_connections():
     """
     Close Redis connections on application shutdown

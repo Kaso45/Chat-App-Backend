@@ -12,7 +12,11 @@ from app.exceptions.db_exception import DatabaseOperationError
 from app.custom_classes.pyobjectid import PyObjectId
 from app.exceptions.message_exception import MessageNotFoundError
 from app.models.message import MessageModel
-from app.redis_client import redis_chat_messages_key, redis_message_data_key
+from app.redis_client import (
+    redis_chat_messages_key,
+    redis_message_data_key,
+    redis_chat_messages_complete_count_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +75,13 @@ class MessageRepository:
     def get_messages_cursor(
         self, chat_id: str, limit: int, lt_timestamp: Optional[datetime] = None
     ):
-        """Return a Motor cursor for newest-first messages by chat with optional lt filter."""
-        query: dict = {"chat_id": PyObjectId(chat_id)}
+        """Return a Motor cursor for newest-first messages by chat with optional lt filter.
+
+        Supports legacy documents where `chat_id` may be stored as a string by
+        querying for both ObjectId and string forms to ensure compatibility.
+        """
+        oid = PyObjectId(chat_id)
+        query: dict = {"$or": [{"chat_id": oid}, {"chat_id": chat_id}]}
         if lt_timestamp is not None:
             query["timestamp"] = {"$lt": lt_timestamp}
         cursor = self.collection.find(query).sort("timestamp", -1).limit(limit)
@@ -119,4 +128,9 @@ class MessageRedisRepository:
         pipe.hset(message_hash_key, mapping=message_data)
         pipe.expire(key, 43200)
         pipe.expire(message_hash_key, 43200)
+        # Keep the completeness marker's TTL fresh alongside message activity so
+        # it does not expire earlier than the message keys and cause false negatives
+        # when deciding whether to fallback to DB on initial loads.
+        complete_count_key = redis_chat_messages_complete_count_key(chat_id)
+        pipe.expire(complete_count_key, 43200)
         await pipe.execute()

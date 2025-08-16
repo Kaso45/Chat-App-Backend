@@ -13,7 +13,11 @@ from redis.exceptions import RedisError
 from app.enums.message import MessageStatus
 from app.exceptions.message_exception import SendingMessageError
 from app.models.message import MessageModel
-from app.redis_client import redis_chat_messages_key, redis_message_data_key
+from app.redis_client import (
+    redis_chat_messages_key,
+    redis_message_data_key,
+    redis_chat_messages_complete_count_key,
+)
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.message_repository import (
     MessageRedisRepository,
@@ -152,11 +156,13 @@ class MessageService:
         try:
             items, _next = await cache_service.get_messages_cached(chat_id, None, size)
             if items:
+                print("Cache hit")
                 return items
         except RedisError as e:
             logger.warning("Redis cache failed for chat %s: %s", chat_id, str(e))
 
         # fallback to DB first page
+        print("Fallback to DB first page")
         page = await self._get_messages_from_db(
             chat_id, CursorParams(size=size, cursor=None)
         )
@@ -249,6 +255,15 @@ class MessageService:
             for doc in docs[: params.size]:
                 model = MessageModel(**doc)
                 await self.message_cache_repo.cache_message(chat_id, model)
+            # On initial load, remember how many items we populated to detect expirations later
+            if params.cursor is None:
+                try:
+                    complete_count_key = redis_chat_messages_complete_count_key(chat_id)
+                    await self.message_cache_repo.redis.set(
+                        complete_count_key, len(docs[: params.size]), ex=43200
+                    )
+                except RedisError:
+                    pass
         except RedisError as e:
             logger.warning(
                 "Failed to backfill Redis cache for chat %s: %s", chat_id, str(e)
@@ -302,6 +317,31 @@ class MessageCacheService:
         for message_id, _score in results[: size * prefetch_factor]:
             pipe.hgetall(redis_message_data_key(message_id))
         message_data_list = await pipe.execute()
+
+        # If any of the first `size` messages' hashes are missing (expired), consider
+        # cache incomplete and force a DB fallback by returning empty items.
+        first_count = min(len(results), size)
+        if any(not message_data_list[i] for i in range(first_count)):
+            return [], None
+
+        # If this is the initial load (no cursor) and Redis returns fewer items
+        # than requested, decide whether it's a truly small chat or an incomplete
+        # cache due to expirations by consulting the previously stored complete_count.
+        if cursor is None and len(results) < size:
+            try:
+                complete_count_key = redis_chat_messages_complete_count_key(chat_id)
+                complete_count_str = await self.redis.get(complete_count_key)
+                if complete_count_str is not None:
+                    try:
+                        complete_count = int(complete_count_str)
+                    except ValueError:
+                        complete_count = 0
+                    if complete_count > len(results):
+                        # Incomplete due to expirations; force DB fallback
+                        return [], None
+            except RedisError:
+                # If marker cannot be read, proceed with current results
+                pass
 
         items: list[MessageResponse] = []
         for i, (message_id, _score) in enumerate(results[:size]):
