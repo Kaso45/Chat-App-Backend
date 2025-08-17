@@ -149,7 +149,7 @@ class UserService:
             raise HTTPException(500, "Server error") from e
 
         reset_token = create_reset_password_token(request.email)
-        url = f"http://localhost:3000/reset/password/{reset_token}"
+        url = f"https://chatappfrontend-alpha.vercel.app/reset/password/{reset_token}"
 
         message = MessageSchema(
             subject="Reset your password",
@@ -215,6 +215,8 @@ class UserService:
         Returns:
             JSON: {"message": "Successfully logged out"}
         """
-        response.delete_cookie(key="access_token")
+        response.delete_cookie(
+            key="access_token", path="/", samesite="none", secure=True
+        )
 
         return {"message": "Successfully logged out"}
